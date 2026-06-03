@@ -1,307 +1,333 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}RDHS Advanced Analytics{% endblock %}
+{% block title %}Advanced Analytics – RDHS{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
 
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <h2 class="fw-bold">Advanced Analytics</h2>
-            <p class="text-muted">
-                Comparative analysis and district-level insights from Rwanda's demographic data.
-            </p>
-        </div>
-    </div>
+<div class="row g-4">
 
-    <!-- Navigation Tabs -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <ul class="nav nav-pills">
-                <li class="nav-item">
-                    <a class="nav-link {% if analysis_type == 'ranking' %}active{% endif %}"
-                        href="?type=ranking&indicator={{ indicator.id|default:'' }}&year={{ selected_year|default:'' }}">
-                        District Ranking
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if analysis_type == 'gap' %}active{% endif %}"
-                        href="?type=gap&indicator={{ indicator.id|default:'' }}&year={{ selected_year|default:'' }}">
-                        Gap Analysis
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if analysis_type == 'correlation' %}active{% endif %}"
-                        href="?type=correlation&indicator={{ indicator.id|default:'' }}&indicator2={{ indicator2.id|default:'' }}&year={{ selected_year|default:'' }}">
-                        Correlation
-                    </a>
-                </li>
-            </ul>
-        </div>
-    </div>
+    <!-- ── Config Panel ── -->
+    <div class="col-lg-3">
+        <div class="glass-card p-4">
+            <h5 class="fw-bold mb-4"><i class="bi bi-sliders me-2 text-primary"></i>Configuration</h5>
 
-    <div class="row">
+            <form method="get" id="analyticsForm">
 
-        <!-- CONFIG PANEL -->
-        <div class="col-lg-4">
-            <div class="card p-4 shadow-sm">
-                <h5 class="fw-bold mb-3">Configuration</h5>
-
-                <form method="get">
-                    <input type="hidden" name="type" value="{{ analysis_type }}">
-
-                    <!-- Indicator 1 -->
-                    <div class="mb-3">
-                        <label class="form-label">Indicator</label>
-                        <select name="indicator" class="form-select" required onchange="this.form.submit()">
-                            <option value="">Select indicator</option>
-                            {% for ind in indicators %}
-                            <option value="{{ ind.id }}" {% if indicator and indicator.id == ind.id %}selected{% endif %}>
-                                {{ ind.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Year filter (if primary indicator is selected and has multiple years) -->
-                    {% if available_years %}
-                    <div class="mb-3">
-                        <label class="form-label">Year</label>
-                        <select name="year" class="form-select" onchange="this.form.submit()">
-                            {% for yr in available_years %}
-                            <option value="{{ yr }}" {% if selected_year == yr %}selected{% endif %}>
-                                {{ yr }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
-
-                    <!-- Indicator 2 (Correlation only) -->
-                    {% if analysis_type == 'correlation' %}
-                    <div class="mb-3">
-                        <label class="form-label">Second Indicator</label>
-                        <select name="indicator2" class="form-select" required onchange="this.form.submit()">
-                            <option value="">Select second indicator</option>
-                            {% for ind in indicators %}
-                            <option value="{{ ind.id }}" {% if indicator2 and indicator2.id == ind.id %}selected{% endif %}>
-                                {{ ind.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
-                </form>
-
-                {% if indicator %}
-                <div class="mt-4 border-top pt-3">
-                    <h6 class="fw-bold">Insight</h6>
-                    <p class="text-muted small">{{ insight|safe }}</p>
-
-                    {% if average and analysis_type != 'correlation' %}
-                    <div class="alert alert-light mt-2">
-                        <strong>National Average:</strong>
-                        {{ average }} {{ indicator.unit }}
-                    </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- RESULT PANEL -->
-        <div class="col-lg-8">
-            <div class="card p-4 shadow-sm h-100">
-
-                {% if indicator %}
-                <h5 class="fw-bold mb-3">
-                    {% if analysis_type == 'ranking' %}
-                    Performance Ranking
-                    {% elif analysis_type == 'gap' %}
-                    Gap Analysis
-                    {% elif analysis_type == 'correlation' %}
-                    Correlation Analysis
-                    {% endif %}
-                </h5>
-
-                <div style="position:relative; height:500px;">
-                    <canvas id="analysisChart"></canvas>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Survey Year</label>
+                    <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                        {% for yr in all_years %}
+                        <option value="{{ yr }}" {% if yr == year %}selected{% endif %}>{{ yr }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
 
-                {% else %}
-                <div class="text-center py-5">
-                    <h4>Select an indicator to begin analysis</h4>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Chapter</label>
+                    <select class="form-select form-select-sm" id="chapterFilter" onchange="filterIndicators()">
+                        <option value="">All chapters</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if indicator and indicator.category_id == cat.id %}selected{% endif %}>
+                            {{ cat.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Indicator</label>
+                    <select name="indicator" class="form-select form-select-sm" id="indicatorSelect" onchange="this.form.submit()">
+                        <option value="">Select indicator…</option>
+                        {% for ind in indicators %}
+                        <option value="{{ ind.id }}" data-cat="{{ ind.category_id }}"
+                            {% if indicator and indicator.id == ind.id %}selected{% endif %}>
+                            {{ ind.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if indicator %}
+
+                {% if available_labels|length > 1 %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Sub-category</label>
+                    <select name="label" class="form-select form-select-sm" onchange="this.form.submit()">
+                        {% for lbl in available_labels %}
+                        <option value="{{ lbl }}" {% if lbl == active_label %}selected{% endif %}>{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 {% endif %}
 
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">View Mode</label>
+                    <div class="d-flex flex-column gap-2">
+                        <a href="?indicator={{ indicator.pk }}&label={{ active_label }}&year={{ year }}"
+                            class="btn btn-sm {% if not compare_all and not compare_two %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill text-start px-3">
+                            <i class="bi bi-bar-chart me-2"></i>All Locations
+                        </a>
+                        <a href="?indicator={{ indicator.pk }}&label={{ active_label }}&year={{ year }}&compare_all=1"
+                            class="btn btn-sm {% if compare_all %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill text-start px-3">
+                            <i class="bi bi-bar-chart-steps me-2"></i>Districts Only
+                        </a>
+                    </div>
+                </div>
+
+                <div class="border-top pt-3">
+                    <label class="form-label fw-semibold small">Compare Two Districts</label>
+                    <select name="district1" class="form-select form-select-sm mb-2">
+                        <option value="">District 1…</option>
+                        {% for d in eastern_districts %}
+                        <option value="{{ d.id }}" {% if district1 and district1.id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="district2" class="form-select form-select-sm mb-2">
+                        <option value="">District 2…</option>
+                        {% for d in eastern_districts %}
+                        <option value="{{ d.id }}" {% if district2 and district2.id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-primary btn-sm rounded-pill w-100" onclick="submitCompare()">
+                        <i class="bi bi-arrow-left-right me-1"></i> Compare
+                    </button>
+                </div>
+
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Chart + Stats ── -->
+    <div class="col-lg-9 d-flex flex-column gap-4">
+
+        <!-- Chart -->
+        <div class="glass-card p-4">
+            {% if not indicator %}
+            <div class="text-center py-5">
+                <i class="bi bi-bar-chart-line fs-1 text-muted opacity-25"></i>
+                <h5 class="mt-3 text-muted">Select an indicator to begin</h5>
+                <p class="small text-muted">Choose a chapter and indicator from the left panel.</p>
+            </div>
+            {% else %}
+            <div class="mb-3">
+                <h5 class="fw-bold mb-1">{{ indicator.name }}</h5>
+                <p class="text-muted small mb-0">
+                    {% if compare_two %}Comparing <strong>{{ district1.name }}</strong> vs <strong>{{ district2.name }}</strong>
+                    {% elif compare_all %}Eastern Province districts · {{ active_label }}
+                    {% else %}All locations · {{ active_label }}{% endif %}
+                    · {{ year }}
+                </p>
+            </div>
+            <div style="position:relative; height:400px;">
+                <canvas id="analyticsChart"></canvas>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Data-driven stats panel -->
+        {% if indicator %}
+        <div class="glass-card p-4">
+            <h5 class="fw-bold mb-3"><i class="bi bi-table text-primary me-2"></i>
+                {% if compare_two %}Side-by-Side Comparison{% else %}District Summary{% endif %}
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            {% if compare_two %}
+                            <th>Sub-category</th>
+                            <th class="text-center" style="color:#4F81BD;">{{ district1.name }}</th>
+                            <th class="text-center" style="color:#C0504D;">{{ district2.name }}</th>
+                            <th class="text-center">Difference</th>
+                            {% else %}
+                            <th>District</th>
+                            <th class="text-end">{{ active_label }}</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody id="statsTableBody">
+                    </tbody>
+                </table>
             </div>
         </div>
+        {% endif %}
 
     </div>
 </div>
 
 {% if indicator %}
-{{ data_json|json_script:"analysis-data" }}
+{{ chart_data|json_script:"analytics-data" }}
+<script id="a-unit"  type="application/json">"{{ indicator.unit }}"</script>
+<script id="a-mode"  type="application/json">"{% if compare_two %}two{% elif compare_all %}all{% else %}single{% endif %}"</script>
+<script id="a-d1"    type="application/json">"{% if district1 %}{{ district1.name }}{% endif %}"</script>
+<script id="a-d2"    type="application/json">"{% if district2 %}{{ district2.name }}{% endif %}"</script>
+{% endif %}
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
 
+{% block extra_js %}
+{% if indicator %}
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
+Chart.register(ChartDataLabels);
 
-        const dataEl = document.getElementById("analysis-data");
-        const canvas = document.getElementById("analysisChart");
+const raw    = JSON.parse(document.getElementById('analytics-data').textContent);
+const unit   = JSON.parse(document.getElementById('a-unit').textContent);
+const mode   = JSON.parse(document.getElementById('a-mode').textContent);
+const d1name = JSON.parse(document.getElementById('a-d1').textContent);
+const d2name = JSON.parse(document.getElementById('a-d2').textContent);
 
-        console.log("dataEl:", dataEl);
-        console.log("canvas:", canvas);
+const C_DISTRICT = '#6D9EEB';
+const C_PROVINCE = '#93C47D';
+const C_NATIONAL = '#F6B26B';
 
-        if (!dataEl || !canvas) {
-            console.error("Missing dataEl or canvas!");
-            return;
-        }
+function districtColor(name) {
+    if (name === 'Rwanda') return C_NATIONAL;
+    if (name === 'Eastern Province') return C_PROVINCE;
+    return C_DISTRICT;
+}
 
-        let rawData = JSON.parse(dataEl.textContent);
-        if (typeof rawData === "string") rawData = JSON.parse(rawData);
-        const type = "{{ analysis_type }}";
+const datalabels = {
+    anchor: 'end', align: 'top', offset: 3,
+    formatter: v => (v !== null && v !== undefined) ? Math.round(v) + '%' : '',
+    font: { family: 'Inter', size: 11, weight: 'bold' },
+    color: '#111827', clamp: true
+};
 
-        console.log("type:", type);
-        console.log("rawData:", rawData);
-        // Filter rawData by Default Province setting
-        const defaultProvince = localStorage.getItem('rdhs_default-province') || 'all';
-        if (defaultProvince !== 'all') {
-            const rwandanProvinces = {
-                'Kigali City': ['Nyarugenge', 'Gasabo', 'Kicukiro'],
-                'South': ['Nyanza', 'Gisagara', 'Nyaruguru', 'Huye', 'Nyamagabe', 'Ruhango', 'Muhanga', 'Kamonyi'],
-                'West': ['Karongi', 'Rutsiro', 'Rubavu', 'Nyabihu', 'Ngororero', 'Rusizi', 'Nyamasheke'],
-                'North': ['Rulindo', 'Gakenke', 'Musanze', 'Burera', 'Gicumbi'],
-                'East': ['Rwamagana', 'Nyagatare', 'Gatsibo', 'Kayonza', 'Kirehe', 'Ngoma', 'Bugesera']
-            };
-
-            // Map settings value "East Province" to "East" matching our dictionary
-            const provinceKey = Object.keys(rwandanProvinces).find(k => defaultProvince.includes(k));
-
-            if (provinceKey && rwandanProvinces[provinceKey]) {
-                const allowedDistricts = rwandanProvinces[provinceKey];
-                rawData = rawData.filter(d => allowedDistricts.includes(d.district));
+function baseOptions(nGroups, nSeries) {
+    const catPct = nGroups <= 3 ? 0.35 : nGroups <= 5 ? 0.55 : nGroups <= 9 ? 0.70 : 0.85;
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 36, left: 4, right: 4 } },
+        plugins: {
+            legend: {
+                display: mode === 'two',
+                position: 'bottom',
+                labels: { usePointStyle: true, padding: 18, font: { family: 'Inter', size: 12 } }
+            },
+            tooltip: {
+                padding: 10,
+                backgroundColor: 'rgba(15,23,42,0.9)',
+                bodyFont: { family: 'Inter', size: 12 },
+                callbacks: { label: c => ` ${parseFloat(c.raw).toFixed(1)}%` }
+            },
+            datalabels
+        },
+        scales: {
+            y: {
+                display: false, beginAtZero: true,
+                max: function(ctx) {
+                    const all = ctx.chart.data.datasets.flatMap(d => d.data).filter(v => v != null);
+                    return all.length ? Math.max(...all) * 1.22 : 100;
+                }
+            },
+            x: {
+                grid: { display: false }, border: { display: false },
+                ticks: { font: { family: 'Inter', size: 11 }, maxRotation: 45, minRotation: 0, autoSkip: false }
             }
         }
+    };
+}
 
-        const ctx = canvas.getContext("2d");
+const ctx = document.getElementById('analyticsChart').getContext('2d');
 
-        if (window.resultChart) {
-            window.resultChart.destroy();
-        }
-
-        if (type === "ranking") {
-            // Read settings
-            const chartStyle = localStorage.getItem('rdhs_chart-style') || 'horizontal';
-            const decimals = parseInt(localStorage.getItem('rdhs_decimals')) || 1;
-            const indexAxis = chartStyle === 'horizontal' ? 'y' : 'x';
-
-            window.resultChart = new Chart(ctx, {
-                type: "bar",
-                data: {
-                    labels: rawData.map(d => d.district),
-                    datasets: [{
-                        label: "Value",
-                        data: rawData.map(d => Number(d.value).toFixed(decimals)),
-                        backgroundColor: "rgba(79, 70, 229, 0.8)"
-                    }]
-                },
-                options: {
-                    indexAxis: indexAxis,
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        [indexAxis === 'y' ? 'x' : 'y']: { beginAtZero: true }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    return context.dataset.label + ': ' + Number(context.raw).toFixed(decimals);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            console.log("Ranking chart created:", window.resultChart);
-        } else if (type === "gap") {
-            const decimals = parseInt(localStorage.getItem('rdhs_decimals')) || 1;
-
-            window.resultChart = new Chart(ctx, {
-                type: "bar",
-                data: {
-                    labels: rawData.map(d => d.district),
-                    datasets: [
-                        {
-                            label: "Group 1",
-                            data: rawData.map(d => Number(d.val1).toFixed(decimals)),
-                            backgroundColor: "rgba(79, 70, 229, 0.8)"
-                        },
-                        {
-                            label: "Group 2",
-                            data: rawData.map(d => Number(d.val2).toFixed(decimals)),
-                            backgroundColor: "rgba(236, 72, 153, 0.8)"
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    return context.dataset.label + ': ' + Number(context.raw).toFixed(decimals);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-        } else if (type === "correlation") {
-            const decimals = parseInt(localStorage.getItem('rdhs_decimals')) || 1;
-
-            window.resultChart = new Chart(ctx, {
-                type: "scatter",
-                data: {
-                    datasets: [{
-                        label: "Districts",
-                        data: rawData.map(d => ({
-                            x: Number(d.x).toFixed(decimals),
-                            y: Number(d.y).toFixed(decimals),
-                            district: d.district
-                        })),
-                        backgroundColor: "rgba(79, 70, 229, 0.8)"
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    const point = context.raw;
-                                    return point.district + ': (' + Number(point.x).toFixed(decimals) + ', ' + Number(point.y).toFixed(decimals) + ')';
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-        }
-
+if (mode === 'two') {
+    const labels = raw.map(r => r.label);
+    const n = labels.length;
+    const catPct = n <= 2 ? 0.30 : n <= 4 ? 0.55 : 0.70;
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: d1name, data: raw.map(r => r.d1), backgroundColor: '#4F81BD', borderColor: 'white', borderWidth: 1, borderRadius: 3, categoryPercentage: catPct, barPercentage: 0.80 },
+                { label: d2name, data: raw.map(r => r.d2), backgroundColor: '#C0504D', borderColor: 'white', borderWidth: 1, borderRadius: 3, categoryPercentage: catPct, barPercentage: 0.80 }
+            ]
+        },
+        options: baseOptions(n, 2)
     });
+
+    // Stats table
+    const tbody = document.getElementById('statsTableBody');
+    raw.forEach(r => {
+        const diff = (r.d1 != null && r.d2 != null) ? (r.d1 - r.d2).toFixed(1) : '—';
+        const diffColor = parseFloat(diff) > 0 ? 'text-success' : parseFloat(diff) < 0 ? 'text-danger' : '';
+        const arrow = parseFloat(diff) > 0 ? '▲' : parseFloat(diff) < 0 ? '▼' : '';
+        tbody.innerHTML += `
+            <tr>
+                <td class="small fw-semibold">${r.label}</td>
+                <td class="text-center fw-bold" style="color:#4F81BD">${r.d1 != null ? r.d1.toFixed(1)+'%' : '—'}</td>
+                <td class="text-center fw-bold" style="color:#C0504D">${r.d2 != null ? r.d2.toFixed(1)+'%' : '—'}</td>
+                <td class="text-center fw-bold ${diffColor}">${arrow} ${Math.abs(diff)}%</td>
+            </tr>`;
+    });
+
+} else {
+    const labels = raw.map(r => r.district);
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: '{{ active_label }}',
+                data: raw.map(r => r.value),
+                backgroundColor: labels.map(districtColor),
+                borderColor: 'white', borderWidth: 1, borderRadius: 3,
+                categoryPercentage: labels.length <= 5 ? 0.55 : 0.70,
+                barPercentage: 0.70
+            }]
+        },
+        options: baseOptions(labels.length, 1)
+    });
+
+    // Stats table
+    const tbody = document.getElementById('statsTableBody');
+    const districtVals = raw.filter(r => r.district !== 'Eastern Province' && r.district !== 'Rwanda');
+    const vals = districtVals.map(r => r.value).filter(v => v != null);
+    const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+    raw.forEach(r => {
+        const isAgg = r.district === 'Eastern Province' || r.district === 'Rwanda';
+        const diff = !isAgg && r.value != null ? (r.value - avg).toFixed(1) : null;
+        const diffColor = diff != null ? (parseFloat(diff) >= 0 ? 'text-success' : 'text-danger') : 'text-muted';
+        const diffText = diff != null ? (parseFloat(diff) >= 0 ? `+${diff}%` : `${diff}%`) : 'avg';
+        tbody.innerHTML += `
+            <tr ${isAgg ? 'class="table-light fw-bold"' : ''}>
+                <td class="small fw-semibold">${r.district}</td>
+                <td class="text-end fw-bold text-primary">${r.value != null ? r.value.toFixed(1)+'%' : '—'}</td>
+                <td class="text-end small ${diffColor}">${diffText}</td>
+            </tr>`;
+    });
+    // Add avg header row
+    if (tbody.innerHTML) {
+        const headerRow = `<tr class="table-secondary"><td class="small text-muted">District Average</td><td class="text-end small text-muted">${avg.toFixed(1)}%</td><td></td></tr>`;
+        tbody.innerHTML = headerRow + tbody.innerHTML;
+    }
+}
 </script>
 {% endif %}
 
+<script>
+function filterIndicators() {
+    const catId = document.getElementById('chapterFilter').value;
+    document.querySelectorAll('#indicatorSelect option').forEach(opt => {
+        if (!opt.value) return;
+        opt.hidden = catId ? opt.dataset.cat !== catId : false;
+    });
+}
+filterIndicators();
+
+function submitCompare() {
+    const indVal = document.getElementById('indicatorSelect').value;
+    if (!indVal) { alert('Please select an indicator first.'); return; }
+    const d1 = document.querySelector('select[name="district1"]').value;
+    const d2 = document.querySelector('select[name="district2"]').value;
+    if (!d1 || !d2) { alert('Please select both districts.'); return; }
+    if (d1 === d2) { alert('Please select two different districts.'); return; }
+    const label = document.querySelector('select[name="label"]')?.value || '';
+    const year  = document.querySelector('select[name="year"]')?.value || '';
+    window.location.href = `/analytics/?indicator=${indVal}&label=${encodeURIComponent(label)}&year=${year}&district1=${d1}&district2=${d2}`;
+}
+</script>
 {% endblock %}

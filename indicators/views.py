@@ -1,22 +1,16 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.urls import reverse
 from django.db.models import Avg
 from .models import Indicator, Category, District, Province, IndicatorValue
 from .forms import SingleIndicatorDataForm, IndicatorJSONUploadForm
 from django.contrib import messages
-import json
+import json, csv, os, re, requests
 from .insights import generate_insights
 from .analytics import get_ranking_data, get_gap_analysis_data
-
-import csv
-from django.http import HttpResponse
-import os
-import requests
-import re
 from dotenv import load_dotenv
+from urllib.parse import quote
 
-# Load environment variables
 load_dotenv()
 
 def get_allowed_numbers(context_data, query):
@@ -166,34 +160,51 @@ def build_system_message(context_data=""):
     return msg
 
 
-def stream_ai_response(request, query, context_data=""):
-    """Generator that streams tokens from Hugging Face API via SSE with real-time verification and multi-turn history."""
+def stream_ai_response(request, query, context_data="", mode="chatbot"):
+    """Generator that streams tokens from Hugging Face API via SSE.
+    mode='chatbot'  → strict hallucination checks (for chatbot widget)
+    mode='analytics' → interpretation mode (for analytics insights panel)
+    """
     API_URL = "https://router.huggingface.co/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {os.getenv('HF_TOKEN')}",
         "Content-Type": "application/json"
     }
-    
-    # Load conversational history from session
-    chat_history = request.session.get('chat_history', [])
-    
-    messages_payload = [
-        {"role": "system", "content": build_system_message(context_data)}
-    ]
-    for msg in chat_history:
-        messages_payload.append(msg)
-    messages_payload.append({"role": "user", "content": query})
-    
+
+    if mode == 'analytics':
+        system_msg = (
+            "You are a public health data analyst interpreting Rwanda DHS 2019/2020 survey results "
+            "for the Eastern Province.\n"
+            "You will be given exact district-level data. Your job is to:\n"
+            "1. Summarise the key findings clearly and concisely.\n"
+            "2. Identify the highest and lowest performing districts.\n"
+            "3. Note any significant disparities or patterns.\n"
+            "4. Provide a brief public-health interpretation (1-2 sentences).\n"
+            "Use Markdown formatting. Only reference numbers that appear in the data provided. "
+            "Do NOT invent or extrapolate any figures.\n\n"
+            f"DATA:\n{context_data}"
+        )
+        messages_payload = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": query}
+        ]
+    else:
+        chat_history = request.session.get('chat_history', [])
+        messages_payload = [{"role": "system", "content": build_system_message(context_data)}]
+        for msg in chat_history:
+            messages_payload.append(msg)
+        messages_payload.append({"role": "user", "content": query})
+
     payload = {
         "messages": messages_payload,
         "model": "moonshotai/Kimi-K2-Instruct",
-        "max_tokens": 600,
+        "max_tokens": 700,
         "stream": True
     }
-    
+
     allowed_floats = get_allowed_numbers(context_data, query)
     accumulated_text = ""
-    
+
     try:
         with requests.post(API_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
             for line in resp.iter_lines():
@@ -208,109 +219,118 @@ def stream_ai_response(request, query, context_data=""):
                             delta = chunk['choices'][0]['delta'].get('content', '')
                             if delta:
                                 accumulated_text += delta
-                                
-                                # Real-time check on completed numbers (not followed by a digit, period, or comma)
-                                is_ok, offending = verify_no_hallucinated_numbers(accumulated_text, allowed_floats, is_streaming=True)
-                                if not is_ok:
-                                    yield f"data: {json.dumps({'token': f' [Data verification failed: Hallucinated number {offending} detected]'})}\n\n"
-                                    yield "data: [DONE]\n\n"
-                                    return
-                                
+                                # Only apply number verification in chatbot mode
+                                if mode == 'chatbot':
+                                    is_ok, offending = verify_no_hallucinated_numbers(accumulated_text, allowed_floats, is_streaming=True)
+                                    if not is_ok:
+                                        yield f"data: {json.dumps({'token': f' [Verification failed: unexpected value {offending}]'})}\n\n"
+                                        yield "data: [DONE]\n\n"
+                                        return
                                 yield f"data: {json.dumps({'token': delta})}\n\n"
                         except (json.JSONDecodeError, KeyError, IndexError):
                             continue
-            
-            # Final check once stream is complete to validate the last number
-            is_ok, offending = verify_no_hallucinated_numbers(accumulated_text, allowed_floats, is_streaming=False)
-            if not is_ok:
-                yield f"data: {json.dumps({'token': f' [Data verification failed: Hallucinated number {offending} detected]'})}\n\n"
-                yield "data: [DONE]\n\n"
-                return
-                
-            # Append successful response to conversation history in the session
-            chat_history.append({"role": "user", "content": query})
-            chat_history.append({"role": "assistant", "content": accumulated_text})
-            request.session['chat_history'] = chat_history[-10:] # rolling log of last 10 messages
-            request.session.save()
-            
+
+            if mode == 'chatbot':
+                is_ok, offending = verify_no_hallucinated_numbers(accumulated_text, allowed_floats, is_streaming=False)
+                if not is_ok:
+                    yield f"data: {json.dumps({'token': f' [Verification failed: unexpected value {offending}]'})}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                chat_history = request.session.get('chat_history', [])
+                chat_history.append({"role": "user", "content": query})
+                chat_history.append({"role": "assistant", "content": accumulated_text})
+                request.session['chat_history'] = chat_history[-10:]
+                request.session.save()
+
     except Exception as e:
         yield f"data: {json.dumps({'token': f'(Error: {str(e)})', 'error': True})}\n\n"
     yield "data: [DONE]\n\n"
 
 
 def indicator_list(request):
-    categories = Category.objects.prefetch_related('indicators').all()
-    all_indicators = Indicator.objects.all().order_by('name')
-    
-    # Calculate stats for the dashboard
-    total_chapters = categories.count()
-    total_indicators = all_indicators.count()
-    total_values = IndicatorValue.objects.count()
+    categories = Category.objects.prefetch_related('indicators').all().order_by('name')
+    all_years = sorted(Indicator.objects.values_list('year', flat=True).distinct(), reverse=True)
+    selected_year = request.GET.get('year')
+    try:
+        selected_year = int(selected_year) if selected_year else all_years[0]
+    except (ValueError, IndexError):
+        selected_year = all_years[0] if all_years else 2020
+
+    # Prefetch only indicators for the selected year
+    from django.db.models import Prefetch
+    year_indicators = Prefetch(
+        'indicators',
+        queryset=Indicator.objects.filter(year=selected_year),
+        to_attr='year_indicators'
+    )
+    categories = categories.prefetch_related(year_indicators)
 
     context = {
         'categories': categories,
-        'all_indicators': all_indicators,
-        'total_chapters': total_chapters,
-        'total_indicators': total_indicators,
-        'total_values': total_values,
+        'all_years': all_years,
+        'selected_year': selected_year,
+        'total_chapters': categories.count(),
+        'total_indicators': Indicator.objects.filter(year=selected_year).count(),
+        'total_values': IndicatorValue.objects.filter(year=selected_year).count(),
     }
     return render(request, 'indicators/dashboard.html', context)
 
 
 
+# District display order: districts first, then province, then national
+DISTRICT_ORDER = ['Rwamagana','Nyagatare','Gatsibo','Kayonza','Kirehe','Ngoma','Bugesera','Eastern Province','Rwanda']
+
+def _sort_key(name):
+    try:
+        return DISTRICT_ORDER.index(name)
+    except ValueError:
+        return 99
+
 def indicator_detail(request, pk):
     indicator = get_object_or_404(Indicator, pk=pk)
-    
-    # Query unique years available (other Indicator records with the same name & category)
-    other_indicators = Indicator.objects.filter(name=indicator.name, category=indicator.category).order_by('-year')
-    available_years = [ind.year for ind in other_indicators]
-    selected_year = indicator.year
-    
-    # Redirect if a different year was selected via query param
+
+    # All years available for this indicator (same name + category)
+    all_years = sorted(
+        Indicator.objects.filter(name=indicator.name, category=indicator.category)
+        .values_list('year', flat=True).distinct(), reverse=True
+    )
+
+    # Allow switching year via ?year=
     selected_year_str = request.GET.get('year')
     if selected_year_str:
         try:
             target_year = int(selected_year_str)
-            target_ind = other_indicators.filter(year=target_year).first()
-            if target_ind and target_ind.pk != indicator.pk:
-                return redirect('indicator_detail', pk=target_ind.pk)
+            target = Indicator.objects.filter(name=indicator.name, category=indicator.category, year=target_year).first()
+            if target and target.pk != indicator.pk:
+                return redirect(f"{reverse('indicator_detail', args=[target.pk])}")
         except ValueError:
             pass
-        
-    # Query relational data for the selected indicator
-    values = indicator.values.all().select_related('district')
-    
-    labels = []
-    datasets_map = {} # label -> [values]
-    
-    # Process values into labels and datasets
-    for val in values:
-        if val.district.name not in labels:
-            labels.append(val.district.name)
-            
-    # Ensure all districts are present in labels if they have data
+
+    values = indicator.values.all().select_related('district').order_by('district__name')
+
+    all_locations = list({v.district.name for v in values})
+    all_locations.sort(key=_sort_key)
+
+    datasets_map = {}
     for val in values:
         if val.data_label not in datasets_map:
-            datasets_map[val.data_label] = [0] * len(labels)
-        
-        dist_index = labels.index(val.district.name)
-        datasets_map[val.data_label][dist_index] = val.value
+            datasets_map[val.data_label] = {loc: None for loc in all_locations}
+        datasets_map[val.data_label][val.district.name] = val.value
 
     datasets = []
-    for label, data_points in datasets_map.items():
-        datasets.append({
-            'label': label,
-            'data': data_points,
-            'borderWidth': 1
-        })
+    for label, loc_values in datasets_map.items():
+        datasets.append({'label': label, 'data': [loc_values.get(loc) for loc in all_locations], 'borderWidth': 1})
+
+    district_names = set(DISTRICT_ORDER[:7])
+    district_values = [v for v in values if v.district.name in district_names]
 
     context = {
         'indicator': indicator,
-        'labels': labels,
+        'labels': all_locations,
         'datasets': datasets,
-        'raw_values': values,
-        'available_years': available_years,
-        'selected_year': selected_year,
+        'raw_values': district_values,
+        'all_years': all_years,
+        'selected_year': indicator.year,
     }
     return render(request, 'indicators/detail.html', context)
 
@@ -465,20 +485,44 @@ def chatbot_query(request):
                 f"Instructions: No specific district or indicator was matched in the database. Provide a general helpful response about the RDHS portal and ask them to specify a district and/or health/demographic metric."
             )
 
-    # --- Return streaming placeholder (JS will connect to SSE stream) ---
-    from urllib.parse import quote
-    stream_url = f"/chatbot/stream/?q={quote(query)}&ctx={quote(data_context)}"
+    # Store context in session, pass only a short key via URL
+    import uuid
+    ctx_key = str(uuid.uuid4())[:8]
+    request.session[f'ctx_{ctx_key}'] = data_context
+    request.session.modified = True
+    stream_url = f"/chatbot/stream/?q={quote(query)}&ctx_key={ctx_key}"
     return render(request, 'indicators/partials/chatbot_response.html', {'stream_url': stream_url})
+
+
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def store_context(request):
+    """Stores AI context in session, returns a short key. Used by analytics AI button."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    import uuid
+    data = json.loads(request.body)
+    ctx_key = str(uuid.uuid4())[:8]
+    request.session[f'ctx_{ctx_key}'] = data.get('context', '')
+    request.session.modified = True
+    return JsonResponse({'key': ctx_key})
 
 
 def stream_chatbot_response(request):
     """SSE endpoint: streams AI tokens to the browser as they arrive."""
-    from django.http import StreamingHttpResponse
     query = request.GET.get('q', '')
-    context_data = request.GET.get('ctx', '')
-    
+    ai_mode = request.GET.get('mode', 'chatbot')
+
+    # Retrieve context — either from session key (chatbot) or direct ctx param (analytics)
+    ctx_key = request.GET.get('ctx_key', '')
+    if ctx_key:
+        context_data = request.session.get(f'ctx_{ctx_key}', '')
+    else:
+        context_data = request.GET.get('ctx', '')
+
     response = StreamingHttpResponse(
-        stream_ai_response(request, query, context_data),
+        stream_ai_response(request, query, context_data, mode=ai_mode),
         content_type='text/event-stream'
     )
     response['Cache-Control'] = 'no-cache'
@@ -561,61 +605,103 @@ def export_indicator_csv(request, pk):
     return response
 
 def advanced_analytics(request):
+    categories = Category.objects.prefetch_related('indicators').all().order_by('name')
+    all_years = sorted(Indicator.objects.values_list('year', flat=True).distinct(), reverse=True)
     indicators = Indicator.objects.all().order_by('name')
-    indicator_id = request.GET.get('indicator')
-    indicator2_id = request.GET.get('indicator2')
-    analysis_type = request.GET.get('type', 'ranking') # ranking, gap, or correlation
-    year_str = request.GET.get('year')
-    
-    available_years = []
-    selected_year = None
-    
-    if indicator_id:
-        available_years = sorted(list(set(IndicatorValue.objects.filter(indicator_id=indicator_id).values_list('year', flat=True))), reverse=True)
-        if available_years:
-            try:
-                selected_year = int(year_str) if year_str else available_years[0]
-            except ValueError:
-                selected_year = available_years[0]
+
+    indicator_id  = request.GET.get('indicator')
+    district1_id  = request.GET.get('district1')
+    district2_id  = request.GET.get('district2')
+    compare_all   = request.GET.get('compare_all') == '1'
+
+    # Year selection
+    selected_year_str = request.GET.get('year')
+    try:
+        selected_year = int(selected_year_str) if selected_year_str else all_years[0]
+    except (ValueError, IndexError):
+        selected_year = 2020
+
+    eastern_districts = District.objects.filter(province__name='Eastern Province').exclude(name='Eastern Province').order_by('name')
 
     context = {
+        'categories': categories,
         'indicators': indicators,
-        'analysis_type': analysis_type,
-        'available_years': available_years,
-        'selected_year': selected_year,
+        'eastern_districts': eastern_districts,
+        'all_years': all_years,
+        'year': selected_year,
     }
-    
-    if analysis_type == 'correlation' and indicator_id and indicator2_id:
-        from .analytics import get_correlation_data
-        results = get_correlation_data(indicator_id, indicator2_id, year=selected_year)
+
+    if not indicator_id:
+        return render(request, 'indicators/analytics.html', context)
+
+    # Find the indicator for the selected year
+    indicator = Indicator.objects.filter(pk=indicator_id).first()
+    if not indicator:
+        return render(request, 'indicators/analytics.html', context)
+
+    # If a different year is selected, find matching indicator
+    if indicator.year != selected_year:
+        alt = Indicator.objects.filter(name=indicator.name, category=indicator.category, year=selected_year).first()
+        if alt:
+            indicator = alt
+
+    values = indicator.values.filter(year=selected_year).select_related('district')
+    available_labels = sorted(set(v.data_label for v in values))
+    active_label = request.GET.get('label', available_labels[0] if available_labels else 'Total')
+
+    if compare_all:
+        district_names = ['Rwamagana','Nyagatare','Gatsibo','Kayonza','Kirehe','Ngoma','Bugesera']
+        chart_values = [
+            {'district': d, 'value': next((v.value for v in values if v.district.name == d and v.data_label == active_label), None)}
+            for d in district_names
+        ]
+        chart_values = [x for x in chart_values if x['value'] is not None]
+        vals_only = [x['value'] for x in chart_values]
+        avg = round(sum(vals_only)/len(vals_only), 1) if vals_only else 0
+        top = max(chart_values, key=lambda x: x['value'], default=None)
+        bottom = min(chart_values, key=lambda x: x['value'], default=None)
         context.update({
-            'indicator': results.get('ind1'),
-            'indicator2': results.get('ind2'),
-            'data_json': json.dumps(results.get('data', [])),
-            'insight': results.get('insight'),
-            'correlation': results.get('correlation'),
-            'selected_year': results.get('year'),
+            'indicator': indicator,
+            'chart_data': chart_values,
+            'compare_all': True,
+            'active_label': active_label,
+            'available_labels': available_labels,
+            'average': avg,
+            'top_district': top,
+            'bottom_district': bottom,
         })
 
-    elif indicator_id:
-        if analysis_type == 'gap':
-            results = get_gap_analysis_data(indicator_id, year=selected_year)
-        else:
-            label = request.GET.get('label', 'Total')
-            results = get_ranking_data(indicator_id, label, year=selected_year)
-            context['active_label'] = results.get('label', 'Total')
-            
+    elif district1_id and district2_id:
+        d1 = get_object_or_404(District, pk=district1_id)
+        d2 = get_object_or_404(District, pk=district2_id)
+        d1_vals = {v.data_label: v.value for v in values if v.district_id == d1.id}
+        d2_vals = {v.data_label: v.value for v in values if v.district_id == d2.id}
+        all_labels = sorted(set(list(d1_vals.keys()) + list(d2_vals.keys())))
+        chart_data = [{'label': lbl, 'd1': d1_vals.get(lbl), 'd2': d2_vals.get(lbl)} for lbl in all_labels]
         context.update({
-            'indicator': results.get('indicator'),
-            'analysis_data': results.get('data', []),
-            'data_json': json.dumps(results.get('data', [])),
-            'insight': results.get('insight'),
-            'average': results.get('average'),
-            'error': results.get('error'),
-            'labels': results.get('labels'), # for gap analysis
-            'selected_year': results.get('year'),
+            'indicator': indicator,
+            'chart_data': chart_data,
+            'compare_two': True,
+            'district1': d1,
+            'district2': d2,
+            'active_label': active_label,
+            'available_labels': available_labels,
         })
-        
+
+    else:
+        district_names = ['Rwamagana','Nyagatare','Gatsibo','Kayonza','Kirehe','Ngoma','Bugesera','Eastern Province','Rwanda']
+        chart_values = [
+            {'district': d, 'value': next((v.value for v in values if v.district.name == d and v.data_label == active_label), None)}
+            for d in district_names
+        ]
+        chart_values = [x for x in chart_values if x['value'] is not None]
+        context.update({
+            'indicator': indicator,
+            'chart_data': chart_values,
+            'active_label': active_label,
+            'available_labels': available_labels,
+        })
+
     return render(request, 'indicators/analytics.html', context)
 
 def public_settings(request):

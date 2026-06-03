@@ -40,4 +40,8 @@ urlpatterns = [
     path('locations/district/create/', admin_views.district_create_view, name='admin_district_create'),
     path('locations/district/edit/<int:pk>/', admin_views.district_edit_view, name='admin_district_edit'),
     path('locations/district/delete/<int:pk>/', admin_views.district_delete_view, name='admin_district_delete'),
+
+    # Report Builder
+    path('report/', admin_views.report_builder_view, name='admin_report_builder'),
+    path('report/indicator/<int:pk>/data/', admin_views.report_indicator_data, name='admin_report_indicator_data'),
 ]

@@ -1,92 +1,54 @@
 {% extends 'base.html' %}
-
 {% load static %}
 {% load indicator_filters %}
 
-
-{% block title %}Dashboard - RDHS Viz{% endblock %}
-{% block extra_css %}
-
-
-{% endblock %}
+{% block title %}Dashboard – RDHS Eastern Province{% endblock %}
 
 {% block content %}
 
-<!-- Summary Stats -->
-<div class="row mb-4">
-    <!-- Total Chapters -->
+<!-- Summary Stats (all dynamic) -->
+<div class="row mb-4 g-3">
     <div class="col-md-4">
         <div class="stat-card p-4 h-100">
             <div class="stat-card-glow"></div>
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="stat-icon primary">
-                    <i class="bi bi-book"></i>
-                </div>
-                <div class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fs-6">
-                    <i class="bi bi-arrow-up-short"></i> 12%
-                </div>
-            </div>
-            <div class="position-relative" style="z-index: 2;">
-                <div class="stat-value">{{ total_chapters }}</div>
-                <div class="stat-label">Total Chapters</div>
-                <p class="text-muted small mb-0 mt-2">
-                    <i class="bi bi-diagram-3 me-1"></i> Organized data structure
-                </p>
-            </div>
+            <div class="stat-icon primary mb-3"><i class="bi bi-book"></i></div>
+            <div class="stat-value">{{ total_chapters }}</div>
+            <div class="stat-label">Chapters</div>
+            <p class="text-muted small mb-0 mt-2"><i class="bi bi-diagram-3 me-1"></i>Organised topic areas</p>
         </div>
     </div>
-
-    <!-- Active Indicators -->
     <div class="col-md-4">
         <div class="stat-card p-4 h-100">
             <div class="stat-card-glow"></div>
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="stat-icon success">
-                    <i class="bi bi-bar-chart-line"></i>
-                </div>
-                <div class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill fs-6">
-                    <i class="bi bi-arrow-up-short"></i> 8%
-                </div>
-            </div>
-            <div class="position-relative" style="z-index: 2;">
-                <div class="stat-value">{{ total_indicators }}</div>
-                <div class="stat-label">Active Indicators</div>
-                <p class="text-muted small mb-0 mt-2">
-                    <i class="bi bi-bullseye me-1"></i> Tracked measurements
-                </p>
-            </div>
+            <div class="stat-icon success mb-3"><i class="bi bi-bar-chart-line"></i></div>
+            <div class="stat-value">{{ total_indicators }}</div>
+            <div class="stat-label">Indicators</div>
+            <p class="text-muted small mb-0 mt-2"><i class="bi bi-bullseye me-1"></i>Health & demographic metrics</p>
         </div>
     </div>
-
-    <!-- Data Points -->
     <div class="col-md-4">
         <div class="stat-card p-4 h-100">
             <div class="stat-card-glow"></div>
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="stat-icon info">
-                    <i class="bi bi-database"></i>
-                </div>
-                <div class="badge bg-info bg-opacity-10 text-info px-3 py-2 rounded-pill fs-6">
-                    <i class="bi bi-arrow-up-short"></i> 24%
-                </div>
-            </div>
-            <div class="position-relative" style="z-index: 2;">
-                <div class="stat-value">{{ total_values }}</div>
-                <div class="stat-label">Data Points</div>
-                <p class="text-muted small mb-0 mt-2">
-                    <i class="bi bi-hdd-stack me-1"></i> Total data analyzed
-                </p>
-            </div>
+            <div class="stat-icon info mb-3"><i class="bi bi-database"></i></div>
+            <div class="stat-value">{{ total_values }}</div>
+            <div class="stat-label">Data Points</div>
+            <p class="text-muted small mb-0 mt-2"><i class="bi bi-hdd-stack me-1"></i>Survey year: {{ selected_year }}</p>
         </div>
     </div>
 </div>
 
-
-
-
-
-
-
+<!-- Year selector -->
+{% if all_years|length > 1 %}
+<div class="d-flex align-items-center gap-3 mb-4">
+    <span class="text-muted small fw-semibold"><i class="bi bi-calendar3 me-1"></i>Survey Year:</span>
+    {% for yr in all_years %}
+    <a href="?year={{ yr }}"
+        class="btn btn-sm {% if yr == selected_year %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill px-3">
+        {{ yr }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
 
 <!-- Chapters Accordion -->
 <div class="accordion accordion-flush bg-transparent" id="chaptersAccordion">
@@ -96,14 +58,19 @@
         <h2 class="accordion-header">
             <button class="accordion-button collapsed py-4 px-4 bg-transparent fw-bold" type="button"
                 data-bs-toggle="collapse" data-bs-target="#collapse{{ category.id }}">
-                <span class="me-3 text-primary fs-5"><i class="bi {{ category.name|chapter_icon }}"></i></span>
-                {{ category.name|chapter_name_only }}
+                <span class="me-3 text-primary fs-5">
+                    <i class="bi {{ category.name|chapter_icon }}"></i>
+                </span>
+                {{ category.name }}
+                <span class="badge bg-primary bg-opacity-10 text-primary ms-3 fw-normal">
+                    {{ category.indicators.count }} indicator{{ category.indicators.count|pluralize }}
+                </span>
             </button>
         </h2>
         <div id="collapse{{ category.id }}" class="accordion-collapse collapse" data-bs-parent="#chaptersAccordion">
             <div class="accordion-body px-4 pb-4">
                 <div class="row g-3">
-                    {% for indicator in category.indicators.all %}
+                    {% for indicator in category.year_indicators %}
                     <div class="col-md-6 col-lg-4 indicator-card" data-indicator-name="{{ indicator.name|lower }}">
                         <a href="{% url 'indicator_detail' indicator.pk %}"
                             class="card indicator-link-card h-100 border-0 p-3 text-decoration-none">
@@ -112,20 +79,15 @@
                                     <i class="bi {{ indicator.name|indicator_icon }}"></i>
                                 </div>
                                 <div>
-                                    <h6 class="mb-1 text-dark fw-bold">
-                                        {{ indicator.name }}
-                                        <span class="text-xs font-semibold px-2 py-0.5 bg-gray-100 text-gray-600 rounded-pill ms-1">{{ indicator.year }}</span>
-                                    </h6>
-                                    <p class="small text-muted mb-0">{{ indicator.unit }}</p>
+                                    <h6 class="mb-1 text-dark fw-bold" style="font-size:0.85rem;">{{ indicator.name }}</h6>
+                                    <p class="small text-muted mb-0">{{ indicator.unit }} · {{ indicator.year }}</p>
                                 </div>
                             </div>
                         </a>
                     </div>
                     {% empty %}
                     <div class="col-12 text-center py-4">
-
                         <p class="text-muted small">No indicators found for this chapter yet.</p>
-
                     </div>
                     {% endfor %}
                 </div>
@@ -135,80 +97,67 @@
     {% endfor %}
 </div>
 
-<!-- No Results Placeholder -->
 <div id="noResults" class="text-center py-5 d-none">
     <h4 class="text-muted">No indicators match your search.</h4>
-    <p class="text-muted small">Try different keywords or browse our categories below.</p>
+    <p class="text-muted small">Try different keywords or browse the categories above.</p>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const searchInput = document.getElementById('globalSearch');
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('globalSearch');
+    if (!searchInput) return;
 
-        // --- Search Functionality ---
-        if (searchInput) {
-            const searchIndex = [];
-            const chapterItems = document.querySelectorAll('.chapter-item');
-            chapterItems.forEach(chapter => {
-                const chapterName = chapter.dataset.chapterName;
-                const indicators = chapter.querySelectorAll('.indicator-card');
-                searchIndex.push({ type: 'chapter', name: chapterName, element: chapter });
-                indicators.forEach(indicator => {
-                    const indicatorName = indicator.dataset.indicatorName;
-                    searchIndex.push({ type: 'indicator', name: indicatorName, element: indicator, parentChapter: chapter });
-                });
+    const searchIndex = [];
+    document.querySelectorAll('.chapter-item').forEach(chapter => {
+        searchIndex.push({ type: 'chapter', name: chapter.dataset.chapterName, element: chapter });
+        chapter.querySelectorAll('.indicator-card').forEach(card => {
+            searchIndex.push({ type: 'indicator', name: card.dataset.indicatorName, element: card, parent: chapter });
+        });
+    });
+
+    const fuse = new Fuse(searchIndex, { keys: ['name'], threshold: 0.4, ignoreLocation: true });
+
+    searchInput.addEventListener('input', function () {
+        const term = this.value.trim();
+        const noResults = document.getElementById('noResults');
+
+        if (!term) {
+            document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.remove('d-none'));
+            document.querySelectorAll('.accordion-collapse.show').forEach(el => {
+                el.classList.remove('show');
+                el.previousElementSibling?.querySelector('.accordion-button')?.classList.add('collapsed');
             });
+            noResults.classList.add('d-none');
+            return;
+        }
 
-            const fuse = new Fuse(searchIndex, {
-                keys: ['name'],
-                threshold: 0.4,
-                ignoreLocation: true,
-                useExtendedSearch: true
-            });
+        document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.add('d-none'));
+        const results = fuse.search(term);
 
-            searchInput.addEventListener('input', function (e) {
-                const searchTerm = e.target.value.toLowerCase().trim();
-                const noResults = document.getElementById('noResults');
-                if (searchTerm === "") {
-                    document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.remove('d-none'));
-                    document.querySelectorAll('.accordion-collapse.show').forEach(el => el.classList.remove('show'));
-                    noResults.classList.add('d-none');
-                    return;
-                }
-                const results = fuse.search(searchTerm);
-                document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.add('d-none'));
-                if (results.length > 0) {
-                    noResults.classList.add('d-none');
-                    results.forEach(result => {
-                        const item = result.item;
-                        item.element.classList.remove('d-none');
-                        if (item.type === 'indicator') {
-                            item.parentChapter.classList.remove('d-none');
-                            item.parentChapter.querySelector('.accordion-collapse').classList.add('show');
-                            item.parentChapter.querySelector('.accordion-button').classList.remove('collapsed');
-                        } else if (item.type === 'chapter') {
-                            item.element.querySelectorAll('.indicator-card').forEach(ind => ind.classList.remove('d-none'));
-                            item.element.querySelector('.accordion-collapse').classList.add('show');
-                            item.element.querySelector('.accordion-button').classList.remove('collapsed');
-                        }
-                    });
+        if (results.length) {
+            noResults.classList.add('d-none');
+            results.forEach(({ item }) => {
+                item.element.classList.remove('d-none');
+                if (item.type === 'indicator') {
+                    item.parent.classList.remove('d-none');
+                    item.parent.querySelector('.accordion-collapse').classList.add('show');
+                    item.parent.querySelector('.accordion-button').classList.remove('collapsed');
                 } else {
-                    noResults.classList.remove('d-none');
+                    item.element.querySelectorAll('.indicator-card').forEach(c => c.classList.remove('d-none'));
+                    item.element.querySelector('.accordion-collapse').classList.add('show');
+                    item.element.querySelector('.accordion-button').classList.remove('collapsed');
                 }
             });
-
-            // Handle cross-page search parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const queryParam = urlParams.get('q');
-            if (queryParam) {
-                searchInput.value = queryParam;
-                // Dispatch input event to trigger the search logic
-                searchInput.dispatchEvent(new Event('input'));
-            }
+        } else {
+            noResults.classList.remove('d-none');
         }
     });
+
+    // Cross-page search via ?q= param
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) { searchInput.value = q; searchInput.dispatchEvent(new Event('input')); }
+});
 </script>
 {% endblock %}

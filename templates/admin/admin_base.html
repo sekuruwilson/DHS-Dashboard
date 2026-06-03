@@ -74,6 +74,14 @@
                             <span class="ml-3 font-medium">Locations</span>
                         </a>
                     </li>
+                    <div class="px-6 pt-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Reports</div>
+                    <li>
+                        <a href="{% url 'admin_report_builder' %}"
+                            class="flex items-center px-6 py-3 text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors {% if 'report' in request.path %}active{% endif %}">
+                            <i class="fas fa-file-alt w-5"></i>
+                            <span class="ml-3 font-medium">Report Builder</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
 

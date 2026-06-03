@@ -5,6 +5,7 @@ urlpatterns = [
     path('', views.indicator_list, name='indicator_list'),
     path('indicator/<int:pk>/', views.indicator_detail, name='indicator_detail'),
     path('chatbot/', views.chatbot_query, name='chatbot_query'),
+    path('chatbot/store-context/', views.store_context, name='store_context'),
     path('chatbot/stream/', views.stream_chatbot_response, name='stream_chatbot_response'),
     path('about/', views.about_rdhs, name='about_rdhs'),
     path('indicator/<int:pk>/insights/', views.indicator_insights, name='indicator_insights'),

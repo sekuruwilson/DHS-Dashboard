@@ -1,7 +1,9 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
+from .models import Province, District
+from .forms import ProvinceForm, DistrictForm
 
 def admin_required(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
@@ -284,6 +286,7 @@ def district_delete_view(request, pk):
 from .forms import IndicatorJSONUploadForm, SingleIndicatorDataForm
 from .models import District, Indicator, IndicatorValue, Category
 import json
+from django.http import JsonResponse
 
 @user_passes_test(admin_required, login_url='admin_login')
 def admin_add_data_view(request):
@@ -417,6 +420,73 @@ def admin_add_data_view(request):
                     messages.error(request, f"Error processing upload: {str(e)}")
     
     return render(request, 'admin/data/add_data.html', {
-        'manual_form': manual_form, 
+        'manual_form': manual_form,
         'upload_form': upload_form
+    })
+
+
+# ── Report Builder ─────────────────────────────────────────────────────────────
+
+DISTRICT_ORDER = ['Rwamagana','Nyagatare','Gatsibo','Kayonza','Kirehe','Ngoma','Bugesera','Eastern Province','Rwanda']
+
+def _report_sort_key(name):
+    try:
+        return DISTRICT_ORDER.index(name)
+    except ValueError:
+        return 99
+
+@user_passes_test(admin_required, login_url='admin_login')
+def report_builder_view(request):
+    categories = Category.objects.prefetch_related('indicators').all().order_by('name')
+    all_years = sorted(Indicator.objects.values_list('year', flat=True).distinct(), reverse=True)
+    return render(request, 'admin/report/builder.html', {
+        'categories': categories,
+        'all_years': all_years,
+    })
+
+@user_passes_test(admin_required, login_url='admin_login')
+def report_indicator_data(request, pk):
+    indicator = get_object_or_404(Indicator, pk=pk)
+    year = request.GET.get('year')
+    try:
+        year = int(year) if year else indicator.year
+    except (ValueError, TypeError):
+        year = indicator.year
+
+    if indicator.year != year:
+        alt = Indicator.objects.filter(
+            name=indicator.name, category=indicator.category, year=year
+        ).first()
+        if alt:
+            indicator = alt
+
+    values = indicator.values.filter(year=year).select_related('district')
+    all_locations = sorted({v.district.name for v in values}, key=_report_sort_key)
+    available_labels = sorted({v.data_label for v in values})
+
+    datasets_map = {lbl: {loc: None for loc in all_locations} for lbl in available_labels}
+    for val in values:
+        datasets_map[val.data_label][val.district.name] = val.value
+
+    datasets = [
+        {'label': lbl, 'data': [datasets_map[lbl][loc] for loc in all_locations]}
+        for lbl in available_labels
+    ]
+    table_rows = []
+    for loc in all_locations:
+        row = {'district': loc}
+        for lbl in available_labels:
+            row[lbl] = datasets_map.get(lbl, {}).get(loc)
+        table_rows.append(row)
+
+    return JsonResponse({
+        'id': indicator.pk,
+        'indicator_name': indicator.name,
+        'category_name': str(indicator.category),
+        'unit': indicator.unit,
+        'year': year,
+        'labels': all_locations,
+        'datasets': datasets,
+        'available_labels': available_labels,
+        'table_rows': table_rows,
     })
