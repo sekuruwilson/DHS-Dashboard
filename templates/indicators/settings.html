@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings - RDHS Data Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8">
+            <div class="glass-card p-4 p-md-5 shadow-sm animate-fade-in" style="border-top: 4px solid #4f46e5;">
+                <div class="d-flex align-items-center mb-4 pb-3 border-bottom border-light">
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-3 me-3">
+                        <i class="bi bi-gear-fill fs-3 text-primary"></i>
+                    </div>
+                    <div>
+                        <h3 class="fw-bold mb-0">Preferences</h3>
+                        <p class="text-muted small mb-0">Customize your portal experience. Settings are saved
+                            automatically to your device.</p>
+                    </div>
+                </div>
+
+                <form id="settingsForm">
+                    <!-- Theme -->
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-5">
+                            <label class="fw-bold mb-1"><i class="bi bi-palette me-2 text-muted"></i>Theme Mode</label>
+                            <p class="text-muted small mb-md-0">Choose light or dark appearance</p>
+                        </div>
+                        <div class="col-md-7">
+                            <select id="setting-theme" class="form-select w-100">
+                                <option value="light">Light Mode (Default)</option>
+                                <option value="dark">Dark Mode</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Language -->
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-5">
+                            <label class="fw-bold mb-1"><i class="bi bi-globe me-2 text-muted"></i>Language</label>
+                            <p class="text-muted small mb-md-0">Set your preferred portal language</p>
+                        </div>
+                        <div class="col-md-7">
+                            <select id="setting-language" class="form-select w-100">
+                                <option value="en">English (Default)</option>
+                                <option value="rw">Kinyarwanda</option>
+                            </select>
+                            <div class="form-text mt-1 text-primary" id="lang-notice" style="display:none;">
+                                <i class="bi bi-info-circle me-1"></i> Translations will be applied on next reload.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart Style -->
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-5">
+                            <label class="fw-bold mb-1"><i class="bi bi-bar-chart-steps me-2 text-muted"></i>Ranking
+                                Chart Style</label>
+                            <p class="text-muted small mb-md-0">Orientation for district rankings</p>
+                        </div>
+                        <div class="col-md-7">
+                            <select id="setting-chart-style" class="form-select w-100">
+                                <option value="horizontal">Horizontal Bar (Default)</option>
+                                <option value="vertical">Vertical Bar</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Decimal Precision -->
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-5">
+                            <label class="fw-bold mb-1"><i class="bi bi-123 me-2 text-muted"></i>Decimal
+                                Precision</label>
+                            <p class="text-muted small mb-md-0">Number of digits after decimal point</p>
+                        </div>
+                        <div class="col-md-7">
+                            <select id="setting-decimals" class="form-select w-100">
+                                <option value="0">Whole numbers (e.g. 42%)</option>
+                                <option value="1" selected>1 decimal place (e.g. 42.5%)</option>
+                                <option value="2">2 decimal places (e.g. 42.53%)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Default Export Format -->
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-5">
+                            <label class="fw-bold mb-1"><i class="bi bi-download me-2 text-muted"></i>Export
+                                Format</label>
+                            <p class="text-muted small mb-md-0">Preferred format when downloading data</p>
+                        </div>
+                        <div class="col-md-7">
+                            <select id="setting-export" class="form-select w-100">
+                                <option value="csv">CSV (Raw Data)</option>
+                                <option value="png">PNG (Chart Image)</option>
+                                <option value="pdf">PDF (Report)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Default Province -->
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-5">
+                            <label class="fw-bold mb-1"><i class="bi bi-map me-2 text-muted"></i>Default
+                                Province</label>
+                            <p class="text-muted small mb-md-0">Pre-select province in analysis</p>
+                        </div>
+                        <div class="col-md-7">
+                            <select id="setting-province" class="form-select w-100">
+                                <option value="all">All Provinces (National)</option>
+                                {% for item in provinces %}
+                                <option value="{{ item.name }}">{{ item.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 pt-3 border-top border-light d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-outline-danger px-4" id="resetBtn">Reset Defaults</button>
+                        <span id="saveIndicator" class="text-success fw-bold fade"><i
+                                class="bi bi-check-circle-fill me-2"></i>Saved!</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Array of all setting inputs
+        const settings = [
+            { id: 'theme', element: document.getElementById('setting-theme'), default: 'light' },
+            { id: 'language', element: document.getElementById('setting-language'), default: 'en' },
+            { id: 'chart-style', element: document.getElementById('setting-chart-style'), default: 'horizontal' },
+            { id: 'decimals', element: document.getElementById('setting-decimals'), default: '1' },
+            { id: 'export-format', element: document.getElementById('setting-export'), default: 'csv' },
+            { id: 'default-province', element: document.getElementById('setting-province'), default: 'all' }
+        ];
+
+        const saveIndicator = document.getElementById('saveIndicator');
+        const langNotice = document.getElementById('lang-notice');
+        let saveTimeout;
+
+        // Load saved settings
+        settings.forEach(setting => {
+            const savedVal = localStorage.getItem('rdhs_' + setting.id);
+            if (savedVal !== null) {
+                setting.element.value = savedVal;
+            } else {
+                setting.element.value = setting.default;
+            }
+
+            // Add event listener for auto-save
+            setting.element.addEventListener('change', (e) => {
+                const val = e.target.value;
+                localStorage.setItem('rdhs_' + setting.id, val);
+
+                // Special handling for theme
+                if (setting.id === 'theme') {
+                    if (val === 'dark') {
+                        document.body.classList.add('dark-theme');
+                        document.documentElement.setAttribute('data-bs-theme', 'dark');
+                    } else {
+                        document.body.classList.remove('dark-theme');
+                        document.documentElement.removeAttribute('data-bs-theme');
+                    }
+                }
+
+                // Special notice for language
+                if (setting.id === 'language') {
+                    langNotice.style.display = 'block';
+                }
+
+                // Show 'Saved!' indicator
+                saveIndicator.classList.add('show');
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    saveIndicator.classList.remove('show');
+                }, 2000);
+            });
+        });
+
+        // Reset button
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to revert to default settings?')) {
+                settings.forEach(setting => {
+                    localStorage.removeItem('rdhs_' + setting.id);
+                    setting.element.value = setting.default;
+                    setting.element.dispatchEvent(new Event('change')); // trigger the change event to apply the resets
+                });
+                langNotice.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}
