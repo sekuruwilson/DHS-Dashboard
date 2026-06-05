@@ -44,4 +44,10 @@ urlpatterns = [
     # Report Builder
     path('report/', admin_views.report_builder_view, name='admin_report_builder'),
     path('report/indicator/<int:pk>/data/', admin_views.report_indicator_data, name='admin_report_indicator_data'),
+
+    # Report Drafts
+    path('report/drafts/', admin_views.list_report_drafts, name='admin_report_list_drafts'),
+    path('report/drafts/save/', admin_views.save_report_draft, name='admin_report_save_draft'),
+    path('report/drafts/<int:pk>/', admin_views.get_report_draft, name='admin_report_get_draft'),
+    path('report/drafts/<int:pk>/delete/', admin_views.delete_report_draft, name='admin_report_delete_draft'),
 ]

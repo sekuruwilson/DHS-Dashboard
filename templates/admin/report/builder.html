@@ -64,120 +64,243 @@
   .view-btn-active   { background: #2563eb; color: white; }
   .view-btn-inactive { background: white; color: #6b7280; }
   .view-btn-inactive:hover { background: #f3f4f6; }
+
+  /* ── Indicator drawer ── */
+  /* The drawer is a sibling of .rb-canvas inside .rb-body,
+     so position:absolute is relative to .rb-body (which is position:relative) */
+  .rb-body { position: relative; flex: 1; overflow: hidden; }
+
+  #indicatorDrawer {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 280px;
+    z-index: 40;
+    background: white;
+    border-right: 2px solid #e0e7ff;
+    box-shadow: 6px 0 32px rgba(0,0,0,0.13);
+    transform: translateX(-100%);
+    transition: transform 0.26s cubic-bezier(0.4,0,0.2,1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #indicatorDrawer.open { transform: translateX(0); }
+
+  #drawerBackdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    background: rgba(15,23,42,0.22);
+    display: none;
+    cursor: pointer;
+    backdrop-filter: blur(1px);
+  }
+  #drawerBackdrop.visible { display: block; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Full-height split-pane layout that cancels admin's p-8 -->
-<div class="-m-8 flex" style="height:calc(100vh - 64px); overflow:hidden;">
+<!-- Report builder — fills the main area (main already has padding:0 from our CSS) -->
+<div style="height:100%; display:flex; flex-direction:column; overflow:hidden; position:relative;">
 
-  <!-- ════════════════════════════════════
-       LEFT SIDEBAR — Indicator browser
-       ════════════════════════════════════ -->
-  <div class="w-72 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col slim-scroll overflow-hidden">
+  <!-- CSRF token -->
+  {% csrf_token %}
 
-    <!-- Header -->
-    <div class="p-4 border-b border-gray-200 flex-shrink-0">
-      <h3 class="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-sm">
-        <i class="fas fa-layer-group text-blue-500"></i>
-        Add Indicators to Report
-      </h3>
+  <!-- ══ TOOLBAR ════════════════════════════════════════════════════ -->
+  <div class="bg-white border-b border-gray-200 flex-shrink-0 shadow-sm">
 
-      <div class="mb-3">
-        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Survey Year</label>
-        <select id="yearSelect"
-          class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          {% for yr in all_years %}
-          <option value="{{ yr }}" {% if forloop.first %}selected{% endif %}>{{ yr }}</option>
-          {% endfor %}
-        </select>
+    <!-- Row 1: open-drawer button + title inputs + status -->
+    <div class="flex items-center gap-3 px-6 py-3 border-b border-gray-100">
+      <button onclick="openIndicatorDrawer()"
+        class="inline-flex items-center gap-2 text-sm font-semibold
+               text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+               px-4 py-2 rounded-lg transition-colors shadow-sm flex-shrink-0">
+        <i class="fas fa-layer-group"></i> Indicators
+      </button>
+      <div class="w-px h-7 bg-gray-200 flex-shrink-0"></div>
+      <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+        <input type="text" id="reportTitle" value="RDHS Eastern Province — Survey Report"
+          class="text-sm font-bold text-gray-800 bg-transparent border-0 outline-none
+                 border-b border-transparent hover:border-gray-300 focus:border-blue-500
+                 transition-colors w-full pb-0.5"
+          placeholder="Report title…">
+        <input type="text" id="reportSubtitle" value="Demographic and Health Indicators"
+          class="text-xs text-gray-400 bg-transparent border-0 outline-none
+                 border-b border-transparent hover:border-gray-300 focus:border-blue-400
+                 transition-colors w-full pb-0.5"
+          placeholder="Subtitle (optional)">
       </div>
-
-      <div class="relative">
-        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-        <input type="text" id="indicatorSearch" placeholder="Search indicators…"
-          class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          oninput="filterIndicators(this.value)">
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="text-xs text-gray-400 whitespace-nowrap" id="sectionCount">0 sections</span>
+        <span id="draftBadge" style="display:none;"
+          class="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full
+                 bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+          <i class="fas fa-circle" style="font-size:5px"></i>
+          <span id="draftBadgeLabel">Draft</span>
+        </span>
       </div>
     </div>
 
-    <!-- Chapter accordion -->
-    <div class="flex-1 overflow-y-auto slim-scroll py-2 px-2" id="indicatorBrowser">
-      {% for cat in categories %}
-      <div class="chapter-group mb-0.5" data-chapter="{{ cat.name|lower }}">
-        <button onclick="toggleChapter(this)"
-          class="w-full text-left flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-          <span class="truncate pr-2 text-xs uppercase tracking-wide">{{ cat.name }}</span>
-          <i class="fas fa-chevron-right text-gray-400 text-xs transition-transform duration-200 flex-shrink-0 chapter-icon"></i>
-        </button>
-        <div class="chapter-indicators hidden pl-1">
-          {% for ind in cat.indicators.all %}
-          <button
-            id="ind-btn-{{ ind.pk }}"
-            data-name="{{ ind.name|lower }}"
-            data-pk="{{ ind.pk }}"
-            onclick="addIndicator({{ ind.pk }}, '{{ ind.name|escapejs }}', '{{ cat.name|escapejs }}')"
-            class="indicator-item w-full text-left px-3 py-1.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors flex items-center gap-2 group">
-            <i class="ind-icon fas fa-plus-circle text-gray-300 group-hover:text-blue-500 flex-shrink-0 text-xs"></i>
-            <span class="leading-snug text-left">{{ ind.name }}</span>
-          </button>
-          {% endfor %}
-        </div>
-      </div>
-      {% endfor %}
+    <!-- Row 2: action buttons -->
+    <div class="flex items-center justify-end gap-2 px-6 py-2">
+      <button onclick="openDraftsModal()"
+        class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700
+               bg-indigo-50 hover:bg-indigo-100 border border-indigo-200
+               px-3 py-1.5 rounded-lg transition-colors">
+        <i class="fas fa-folder-open"></i> Drafts
+      </button>
+      <button id="saveDraftBtn" onclick="saveDraft()"
+        class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700
+               bg-emerald-50 hover:bg-emerald-600 hover:text-white
+               border border-emerald-300 hover:border-emerald-600
+               px-3 py-1.5 rounded-lg transition-colors">
+        <i class="fas fa-save"></i> Save Draft
+      </button>
+      <div class="w-px h-4 bg-gray-200"></div>
+      <button onclick="clearReport()"
+        class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500
+               hover:text-red-600 hover:bg-red-50 border border-gray-200
+               hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors">
+        <i class="fas fa-trash-alt"></i> Clear
+      </button>
+      <button onclick="previewReport()"
+        class="inline-flex items-center gap-1.5 text-xs font-semibold text-white
+               bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg
+               transition-colors shadow-sm">
+        <i class="fas fa-print"></i> Preview &amp; Print
+      </button>
     </div>
 
   </div>
 
-  <!-- ════════════════════════════════════
-       RIGHT CANVAS — Report content
-       ════════════════════════════════════ -->
-  <div class="flex-1 flex flex-col overflow-hidden bg-gray-100">
-
-    <!-- Sticky top toolbar -->
-    <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm flex-shrink-0 z-10">
-      <div class="flex flex-col gap-0.5">
-        <input type="text" id="reportTitle" value="RDHS Eastern Province — Survey Report"
-          class="text-base font-bold text-gray-800 bg-transparent border-0 outline-none border-b border-transparent hover:border-gray-300 focus:border-blue-500 transition-colors w-96 pb-0.5"
-          placeholder="Report Title">
-        <input type="text" id="reportSubtitle" value="Demographic and Health Indicators"
-          class="text-xs text-gray-500 bg-transparent border-0 outline-none border-b border-transparent hover:border-gray-300 focus:border-blue-400 transition-colors w-80 pb-0.5"
-          placeholder="Subtitle (optional)">
+  <!-- ══ DRAFTS MODAL ══════════════════════════════════════════════════ -->
+  <div id="draftsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center"
+       style="background:rgba(0,0,0,0.45);">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col"
+         style="max-height:80vh;">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <h3 class="font-semibold text-gray-800 flex items-center gap-2">
+          <i class="fas fa-folder-open text-indigo-500"></i> Saved Drafts
+        </h3>
+        <button onclick="closeDraftsModal()"
+          class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-200 text-gray-400">
+          <i class="fas fa-times text-xs"></i>
+        </button>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-gray-400 mr-1" id="sectionCount">0 sections</span>
-        <button onclick="clearReport()"
-          class="text-sm text-gray-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
-          <i class="fas fa-trash-alt text-xs mr-1"></i>Clear All
-        </button>
-        <button onclick="previewReport()"
-          class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
-          <i class="fas fa-print text-xs"></i> Preview &amp; Print
-        </button>
+      <div class="px-6 py-4 border-b border-gray-100">
+        <p class="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wider">Save as new draft</p>
+        <div class="flex gap-2">
+          <input type="text" id="draftNameInput" placeholder="Draft name…"
+            class="flex-1 text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <button onclick="saveDraftFromModal()"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium
+                   px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5 flex-shrink-0">
+            <i class="fas fa-save text-xs"></i> Save
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto px-6 py-4" id="draftsList">
+        <div class="text-center py-8 text-gray-400">
+          <i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
+          <p class="text-sm">Loading…</p>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- Scrollable canvas area -->
-    <div class="flex-1 overflow-y-auto slim-scroll p-6">
+  <!-- ══ BODY: drawer + canvas live here ════════════════════════════ -->
+  <div class="rb-body">
+
+    <!-- Indicator drawer (slides in over canvas) -->
+    <div id="indicatorDrawer">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+        <span class="flex items-center gap-2 font-semibold text-gray-800 text-sm">
+          <i class="fas fa-layer-group text-blue-500"></i> Add Indicators
+        </span>
+        <button onclick="closeIndicatorDrawer()"
+          class="w-7 h-7 flex items-center justify-center rounded-lg
+                 hover:bg-gray-200 text-gray-400 hover:text-gray-700 transition-colors"
+          title="Close">
+          <i class="fas fa-times text-xs"></i>
+        </button>
+      </div>
+
+      <!-- Year + search -->
+      <div class="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Survey Year</label>
+        <select id="yearSelect"
+          class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white mb-2">
+          {% for yr in all_years %}
+          <option value="{{ yr }}" {% if forloop.first %}selected{% endif %}>{{ yr }}</option>
+          {% endfor %}
+        </select>
+        <div class="relative">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+          <input type="text" id="indicatorSearch" placeholder="Search indicators…"
+            class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg
+                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+            oninput="filterIndicators(this.value)">
+        </div>
+      </div>
+
+      <!-- Chapter accordion -->
+      <div class="flex-1 overflow-y-auto slim-scroll py-2 px-2" id="indicatorBrowser">
+        {% for cat in categories %}
+        <div class="chapter-group mb-0.5" data-chapter="{{ cat.name|lower }}">
+          <button onclick="toggleChapter(this)"
+            class="w-full text-left flex items-center justify-between px-3 py-2.5
+                   rounded-lg hover:bg-blue-50 transition-colors group">
+            <span class="text-xs font-bold text-gray-700 uppercase tracking-wide pr-2 leading-tight
+                         group-hover:text-blue-700">{{ cat.name }}</span>
+            <i class="fas fa-chevron-right text-gray-400 chapter-icon flex-shrink-0
+                      transition-transform duration-200 group-hover:text-blue-500"
+               style="font-size:10px;"></i>
+          </button>
+          <div class="chapter-indicators hidden pl-1">
+            {% for ind in cat.indicators.all %}
+            <button
+              id="ind-btn-{{ ind.pk }}"
+              data-name="{{ ind.name|lower }}"
+              data-pk="{{ ind.pk }}"
+              onclick="addIndicator({{ ind.pk }}, '{{ ind.name|escapejs }}', '{{ cat.name|escapejs }}')"
+              class="indicator-item w-full text-left px-3 py-2 text-sm text-gray-600
+                     hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors
+                     flex items-center gap-2 group">
+              <i class="ind-icon fas fa-plus-circle text-gray-300 group-hover:text-blue-500
+                        flex-shrink-0 text-xs"></i>
+              <span class="leading-snug text-left">{{ ind.name }}</span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div><!-- /#indicatorDrawer -->
+
+    <!-- Backdrop -->
+    <div id="drawerBackdrop" onclick="closeIndicatorDrawer()"></div>
+
+    <!-- Canvas (always full width) -->
+    <div class="h-full overflow-y-auto slim-scroll bg-gray-100 p-6">
       <div class="max-w-4xl mx-auto">
 
-        <!-- Empty state -->
         <div id="emptyState" class="text-center py-24">
           <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-5">
             <i class="fas fa-file-alt text-blue-300 text-3xl"></i>
           </div>
           <h3 class="text-lg font-semibold text-gray-600 mb-2">Your report is empty</h3>
-          <p class="text-sm text-gray-400 max-w-xs mx-auto">
-            Click any indicator in the left panel to add it as a section in your report.
+          <p class="text-sm text-gray-400 max-w-sm mx-auto">
+            Click <strong class="text-blue-600">Indicators</strong> in the toolbar to browse chapters and add sections.
           </p>
         </div>
 
-        <!-- Sections are injected here -->
         <div id="sectionsContainer"></div>
 
       </div>
     </div>
-  </div>
+
+  </div><!-- /.rb-body -->
 
 </div>
 {% endblock %}
@@ -201,6 +324,18 @@ const sectionMap   = {};   // uid → { indicatorId, data, chart, qBefore, qAfte
 //   "pk"          → the unlocked multi-label section for that indicator
 //   "pk:label"    → a locked single-label section for that indicator+label combo
 const addedKeys = new Set();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INDICATOR DRAWER OPEN / CLOSE
+// ─────────────────────────────────────────────────────────────────────────────
+function openIndicatorDrawer() {
+  document.getElementById('indicatorDrawer').classList.add('open');
+  document.getElementById('drawerBackdrop').classList.add('visible');
+}
+function closeIndicatorDrawer() {
+  document.getElementById('indicatorDrawer').classList.remove('open');
+  document.getElementById('drawerBackdrop').classList.remove('visible');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIDEBAR HELPERS
@@ -264,6 +399,7 @@ async function addIndicator(pk, name, chapter) {
 
   addedKeys.add(key);
   createSection(data, null);   // null = unlocked, dropdown available
+  closeIndicatorDrawer();       // return focus to canvas after adding
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1006,6 +1142,282 @@ function esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAFT SYSTEM
+// ─────────────────────────────────────────────────────────────────────────────
+let currentDraftId   = null;  // pk of the draft currently loaded/last saved
+let draftUnsaved     = false; // true when report has unsaved changes since last save
+
+function csrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
+
+// ── Collect current report state into a plain object ──────────────────────
+function collectDraftContent() {
+  return {
+    title:    document.getElementById('reportTitle').value,
+    subtitle: document.getElementById('reportSubtitle').value,
+    sections: sectionOrder.map(id => {
+      const s = sectionMap[id];
+      return {
+        indicatorId:   s.indicatorId,
+        indicatorYear: s.data.year,
+        lockedLabel:   s.lockedLabel  || null,
+        viewAllLabels: s.viewAllLabels,
+        activeLabel:   s.activeLabel,
+        viewMode:      s.viewMode,
+        textBefore:    s.qBefore ? s.qBefore.root.innerHTML : '',
+        textAfter:     s.qAfter  ? s.qAfter.root.innerHTML  : '',
+      };
+    })
+  };
+}
+
+// ── Save Draft (toolbar button — updates current draft or prompts for name) ─
+async function saveDraft() {
+  if (!sectionOrder.length) {
+    showToast('Add at least one section before saving.', 'error');
+    return;
+  }
+  const title = document.getElementById('reportTitle').value.trim() || 'Untitled Draft';
+  await doSaveDraft(title, currentDraftId);
+}
+
+// ── Save from modal (uses the name input) ────────────────────────────────
+async function saveDraftFromModal() {
+  if (!sectionOrder.length) {
+    showToast('Add at least one section before saving.', 'error');
+    return;
+  }
+  const nameInput = document.getElementById('draftNameInput');
+  const title     = nameInput.value.trim() || document.getElementById('reportTitle').value.trim() || 'Untitled Draft';
+  await doSaveDraft(title, null);  // always create new from modal
+  nameInput.value = '';
+  loadDraftsInModal();
+}
+
+// ── Core save function ───────────────────────────────────────────────────
+async function doSaveDraft(title, draftId) {
+  const btn = document.getElementById('saveDraftBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin text-xs"></i> Saving…'; }
+
+  try {
+    const resp = await fetch('/admin-panel/report/drafts/save/', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+      body:    JSON.stringify({ id: draftId, title, content: collectDraftContent() })
+    });
+    if (!resp.ok) throw new Error('Server error');
+    const result = await resp.json();
+
+    currentDraftId = result.id;
+    draftUnsaved   = false;
+    updateDraftBadge(result.title);
+    showToast(`Draft "${result.title}" saved.`);
+  } catch(e) {
+    showToast('Failed to save draft. Please try again.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save text-xs"></i> Save Draft'; btn.className = btn.className; }
+  }
+}
+
+// ── Draft badge in toolbar ────────────────────────────────────────────────
+function updateDraftBadge(title) {
+  const badge = document.getElementById('draftBadge');
+  const label = document.getElementById('draftBadgeLabel');
+  if (badge && label) {
+    label.textContent = title || 'Draft';
+    badge.style.display = 'inline-flex';
+  }
+}
+
+// ── Open / close modal ────────────────────────────────────────────────────
+function openDraftsModal() {
+  document.getElementById('draftsModal').classList.remove('hidden');
+  // Pre-fill name input with report title
+  const ti = document.getElementById('draftNameInput');
+  if (ti && !ti.value) ti.value = document.getElementById('reportTitle').value;
+  loadDraftsInModal();
+}
+
+function closeDraftsModal() {
+  document.getElementById('draftsModal').classList.add('hidden');
+}
+// Close on backdrop click
+document.getElementById('draftsModal').addEventListener('click', function(e) {
+  if (e.target === this) closeDraftsModal();
+});
+
+// ── Load list of drafts into modal ────────────────────────────────────────
+async function loadDraftsInModal() {
+  const container = document.getElementById('draftsList');
+  container.innerHTML = `<div class="text-center py-8 text-gray-400"><i class="fas fa-circle-notch fa-spin text-xl mb-2"></i><p class="text-sm">Loading…</p></div>`;
+
+  try {
+    const resp = await fetch('/admin-panel/report/drafts/');
+    const data = await resp.json();
+
+    if (!data.drafts.length) {
+      container.innerHTML = `<div class="text-center py-10"><i class="fas fa-folder-open text-gray-300 text-3xl mb-3"></i><p class="text-sm text-gray-400">No saved drafts yet.</p><p class="text-xs text-gray-300 mt-1">Use "Save Draft" to save your report progress.</p></div>`;
+      return;
+    }
+
+    container.innerHTML = data.drafts.map(d => `
+      <div class="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 group" id="draft-row-${d.id}">
+        <div class="min-w-0 flex-1">
+          <div class="font-semibold text-gray-800 text-sm truncate flex items-center gap-2">
+            ${d.id === currentDraftId ? '<span class="text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600 flex-shrink-0">current</span>' : ''}
+            ${esc(d.title)}
+          </div>
+          <div class="text-xs text-gray-400 mt-0.5">
+            <i class="fas fa-clock mr-1"></i>${esc(d.updated_at)}
+            &nbsp;·&nbsp;
+            <i class="fas fa-layer-group mr-1"></i>${d.section_count} section${d.section_count !== 1 ? 's' : ''}
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 ml-3 flex-shrink-0">
+          <button onclick="loadDraft(${d.id})"
+            class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+            <i class="fas fa-folder-open mr-1"></i>Load
+          </button>
+          <button onclick="confirmDeleteDraft(${d.id}, '${d.title.replace(/'/g, "\\'")}')"
+            class="text-xs px-2 py-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete draft">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    container.innerHTML = `<p class="text-sm text-red-500 text-center py-6">Failed to load drafts.</p>`;
+  }
+}
+
+// ── Load a specific draft into the builder ────────────────────────────────
+async function loadDraft(id) {
+  if (sectionOrder.length > 0) {
+    if (!confirm('Loading a draft will replace your current report. Continue?')) return;
+  }
+  closeDraftsModal();
+
+  try {
+    const resp = await fetch(`/admin-panel/report/drafts/${id}/`);
+    if (!resp.ok) throw new Error('Not found');
+    const { content, title } = await resp.json();
+    await restoreDraft(id, content, title);
+  } catch(e) {
+    showToast('Failed to load draft.', 'error');
+  }
+}
+
+// ── Restore draft content into the builder ────────────────────────────────
+async function restoreDraft(draftId, content, draftTitle) {
+  // Clear existing
+  [...sectionOrder].forEach(removeSection);
+
+  // Titles
+  document.getElementById('reportTitle').value    = content.title    || '';
+  document.getElementById('reportSubtitle').value = content.subtitle || '';
+
+  // Rebuild sections one by one (sequential so ordering is preserved)
+  for (const sec of (content.sections || [])) {
+    try {
+      const resp = await fetch(`/admin-panel/report/indicator/${sec.indicatorId}/data/?year=${sec.indicatorYear}`);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+
+      // Register in addedKeys so sidebar updates correctly
+      const key = sec.lockedLabel ? `${sec.indicatorId}:${sec.lockedLabel}` : String(sec.indicatorId);
+      addedKeys.add(key);
+
+      // Mark sidebar button
+      if (!sec.lockedLabel) {
+        const btn = document.getElementById(`ind-btn-${sec.indicatorId}`);
+        if (btn) {
+          btn.classList.add('in-report');
+          const icon = btn.querySelector('.ind-icon');
+          if (icon) { icon.classList.replace('fa-plus-circle','fa-check-circle'); icon.classList.remove('text-gray-300'); icon.classList.add('text-green-500'); }
+        }
+      }
+
+      createSection(data, sec.lockedLabel || null);
+
+      const newId = sectionOrder[sectionOrder.length - 1];
+      const s     = sectionMap[newId];
+      if (!s) continue;
+
+      // Restore view settings
+      const hasMulti = data.available_labels.length > 1;
+      s.viewAllLabels = sec.viewAllLabels !== undefined
+        ? sec.viewAllLabels
+        : (hasMulti && !sec.lockedLabel);
+      s.activeLabel = sec.activeLabel || data.available_labels[0] || 'Total';
+
+      // Sync dropdown selection
+      const sel = document.querySelector(`#section-${newId} select[onchange*="changeSectionLabel"]`);
+      if (sel) sel.value = s.viewAllLabels ? '' : s.activeLabel;
+
+      // Re-render chart with restored settings
+      renderChart(newId);
+
+      // Restore view mode
+      if (sec.viewMode === 'table') setViewMode(newId, 'table');
+
+      // Restore Quill content (skip Quill's empty default "<p><br></p>")
+      const emptyQ = '<p><br></p>';
+      if (sec.textBefore && sec.textBefore !== emptyQ && s.qBefore) s.qBefore.root.innerHTML = sec.textBefore;
+      if (sec.textAfter  && sec.textAfter  !== emptyQ && s.qAfter)  s.qAfter.root.innerHTML  = sec.textAfter;
+
+    } catch(e) {
+      console.warn('Could not restore section:', e);
+    }
+  }
+
+  currentDraftId = draftId;
+  draftUnsaved   = false;
+  updateDraftBadge(draftTitle || content.title || 'Draft');
+  showToast('Draft loaded successfully.');
+}
+
+// ── Delete a draft ────────────────────────────────────────────────────────
+function confirmDeleteDraft(id, title) {
+  if (!confirm(`Delete draft "${title}"? This cannot be undone.`)) return;
+  deleteDraft(id);
+}
+
+async function deleteDraft(id) {
+  try {
+    const resp = await fetch(`/admin-panel/report/drafts/${id}/delete/`, {
+      method:  'POST',
+      headers: { 'X-CSRFToken': csrfToken() }
+    });
+    if (!resp.ok) throw new Error();
+    if (id === currentDraftId) {
+      currentDraftId = null;
+      const badge = document.getElementById('draftBadge');
+      if (badge) badge.style.display = 'none';
+    }
+    loadDraftsInModal();
+    showToast('Draft deleted.');
+  } catch(e) {
+    showToast('Failed to delete draft.', 'error');
+  }
+}
+
+// ── Toast notification ────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.className = [
+    'fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium',
+    'flex items-center gap-2 transition-all duration-300',
+    type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+  ].join(' ');
+  t.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${esc(msg)}`;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; }, 2600);
+  setTimeout(() => t.remove(), 3100);
 }
 </script>
 {% endblock %}

@@ -35,6 +35,22 @@ class Indicator(models.Model):
     def __str__(self):
         return f"{self.name} ({self.year})"
 
+from django.contrib.auth.models import User
+
+class ReportDraft(models.Model):
+    title      = models.CharField(max_length=255, default='Untitled Draft')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='report_drafts')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    content    = models.JSONField(default=dict)
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        ordering = ['-updated_at']
+
+
 class IndicatorValue(models.Model):
     indicator = models.ForeignKey(Indicator, on_delete=models.CASCADE, related_name='values')
     district = models.ForeignKey(District, on_delete=models.CASCADE, related_name='indicator_values')

@@ -490,3 +490,67 @@ def report_indicator_data(request, pk):
         'available_labels': available_labels,
         'table_rows': table_rows,
     })
+
+
+# ── Report Drafts ──────────────────────────────────────────────────────────────
+
+@user_passes_test(admin_required, login_url='admin_login')
+def save_report_draft(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    from .models import ReportDraft
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    draft_id = payload.get('id')
+    title    = (payload.get('title') or 'Untitled Draft')[:255]
+    content  = payload.get('content', {})
+
+    if draft_id:
+        draft = ReportDraft.objects.filter(pk=draft_id, created_by=request.user).first()
+        if draft:
+            draft.title   = title
+            draft.content = content
+            draft.save()
+        else:
+            draft = ReportDraft.objects.create(title=title, created_by=request.user, content=content)
+    else:
+        draft = ReportDraft.objects.create(title=title, created_by=request.user, content=content)
+
+    return JsonResponse({
+        'id':            draft.pk,
+        'title':         draft.title,
+        'updated_at':    draft.updated_at.strftime('%d %b %Y, %H:%M'),
+        'section_count': len(content.get('sections', [])),
+    })
+
+
+@user_passes_test(admin_required, login_url='admin_login')
+def list_report_drafts(request):
+    from .models import ReportDraft
+    drafts = ReportDraft.objects.filter(created_by=request.user)
+    return JsonResponse({'drafts': [{
+        'id':            d.pk,
+        'title':         d.title,
+        'updated_at':    d.updated_at.strftime('%d %b %Y, %H:%M'),
+        'section_count': len(d.content.get('sections', [])),
+    } for d in drafts]})
+
+
+@user_passes_test(admin_required, login_url='admin_login')
+def get_report_draft(request, pk):
+    from .models import ReportDraft
+    draft = get_object_or_404(ReportDraft, pk=pk, created_by=request.user)
+    return JsonResponse({'id': draft.pk, 'title': draft.title, 'content': draft.content})
+
+
+@user_passes_test(admin_required, login_url='admin_login')
+def delete_report_draft(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    from .models import ReportDraft
+    draft = get_object_or_404(ReportDraft, pk=pk, created_by=request.user)
+    draft.delete()
+    return JsonResponse({'ok': True})
