@@ -484,36 +484,8 @@
         <div class="nav-section">
             <div class="nav-section-label">Data Pipeline</div>
             <a href="{% url 'admin_dataset_upload' %}"
-               class="nav-item {% if 'dataset' in request.path and 'variables' not in request.path %}active{% endif %}">
+               class="nav-item {% if 'datasets' in request.path %}active{% endif %}">
                 <i class="fas fa-upload"></i> Upload Datasets
-            </a>
-            <a href="{% url 'admin_dataset_variables' %}"
-               class="nav-item {% if 'variables' in request.path %}active{% endif %}">
-                <i class="fas fa-table-list"></i> Variable Explorer
-            </a>
-            <a href="{% url 'admin_indicator_calculate' %}"
-               class="nav-item {% if 'compute' in request.path %}active{% endif %}">
-                <i class="fas fa-calculator"></i> Compute Indicators
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <div class="nav-section-label">Data Management</div>
-            <a href="{% url 'admin_categories' %}"
-               class="nav-item {% if 'categories' in request.path %}active{% endif %}">
-                <i class="fas fa-folder"></i> Categories
-            </a>
-            <a href="{% url 'admin_indicators' %}"
-               class="nav-item {% if 'indicators' in request.path and 'compute' not in request.path %}active{% endif %}">
-                <i class="fas fa-chart-bar"></i> Indicators
-            </a>
-            <a href="{% url 'admin_datavalues' %}"
-               class="nav-item {% if 'data-values' in request.path %}active{% endif %}">
-                <i class="fas fa-database"></i> Data Values
-            </a>
-            <a href="{% url 'admin_locations' %}"
-               class="nav-item {% if 'locations' in request.path %}active{% endif %}">
-                <i class="fas fa-map-location-dot"></i> Locations
             </a>
         </div>
 
@@ -526,10 +498,7 @@
             <a href="{% url 'admin_audit_logs' %}"
                class="nav-item {% if 'audit' in request.path %}active{% endif %}">
                 <i class="fas fa-shield-halved"></i> Audit Logs
-            <!-- </a>
-            <a href="/" target="_blank" class="nav-item">
-                <i class="fas fa-globe"></i> Public Dashboard
-            </a> -->
+            </a>
         </div>
 
         <div class="sidebar-footer">

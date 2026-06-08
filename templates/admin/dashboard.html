@@ -257,198 +257,116 @@
 
 {% block content %}
 
-<!-- ── Stat Cards ─────────────────────────────────── -->
+<!-- ── Stat Cards ────────────────────────────────────── -->
 <div class="dash-stats">
 
     <div class="ds-card blue">
-        <div class="ds-label">Total Chapters</div>
-        <div class="ds-value">{{ total_chapters|default:"0" }}</div>
-        <a href="{% url 'admin_categories' %}" class="ds-link blue">
-            Information Categories <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
-        </a>
+        <div class="ds-label">Indicators Computed</div>
+        <div class="ds-value">{{ total_indicators|default:"0" }}</div>
+        <span class="ds-link blue">Across all chapters</span>
     </div>
 
     <div class="ds-card indigo">
-        <div class="ds-label">Indicators</div>
-        <div class="ds-value">{{ total_indicators|default:"0" }}</div>
-        <a href="{% url 'admin_indicators' %}" class="ds-link indigo">
-            Monitored Metrics <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
-        </a>
+        <div class="ds-label">Data Points</div>
+        <div class="ds-value">{{ total_values|default:"0" }}</div>
+        <span class="ds-link indigo">District-level values</span>
     </div>
 
     <div class="ds-card teal">
-        <div class="ds-label">Data Points</div>
-        <div class="ds-value">{{ total_values|default:"0" }}</div>
-        <a href="{% url 'admin_datavalues' %}" class="ds-link teal">
-            Recorded Values <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
+        <div class="ds-label">Uploaded Datasets</div>
+        <div class="ds-value">{{ total_datasets|default:"0" }}</div>
+        <a href="{% url 'admin_dataset_upload' %}" class="ds-link teal">
+            Manage <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
         </a>
     </div>
 
     <div class="ds-card orange">
-        <div class="ds-label">Districts</div>
-        <div class="ds-value">{{ total_districts|default:"0" }}</div>
-        <a href="{% url 'admin_locations' %}" class="ds-link orange">
-            Across Rwanda <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
+        <div class="ds-label">Admin Users</div>
+        <div class="ds-value">{{ total_users|default:"0" }}</div>
+        <a href="{% url 'admin_user_list' %}" class="ds-link orange">
+            Manage <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
         </a>
     </div>
 
 </div>
 
-<!-- ── Main 2-column Grid ─────────────────────────── -->
+<!-- ── Main 2-column Grid ────────────────────────────── -->
 <div class="dash-grid">
 
-    <!-- Left Column -->
+    <!-- Left: Uploaded Datasets -->
     <div style="display:flex;flex-direction:column;gap:20px;">
 
-        <!-- Quick Actions -->
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Quick Actions</h2>
-            </div>
-            <div class="quick-actions">
-                <a href="{% url 'admin_category_create' %}" class="qa-btn blue">
-                    <i class="fas fa-plus"></i>
-                    Add Category
-                </a>
-                <a href="{% url 'admin_indicator_create' %}" class="qa-btn indigo">
-                    <i class="fas fa-chart-line"></i>
-                    Add Indicator
-                </a>
-                <a href="{% url 'admin_datavalue_create' %}" class="qa-btn teal">
-                    <i class="fas fa-database"></i>
-                    Add Data
-                </a>
-                <a href="{% url 'admin_locations' %}" class="qa-btn orange">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Locations
+                <h2 class="card-title">Uploaded DHS Datasets</h2>
+                <a href="{% url 'admin_dataset_upload' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-upload"></i> Upload
                 </a>
             </div>
-            <a href="{% url 'admin_dataset_upload' %}" class="qa-batch">
-                <i class="fas fa-plus-circle"></i>
-                Add Manual / Batch Data
-            </a>
-        </div>
 
-        <!-- DHS Dataset Processing -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">DHS Dataset Processing</h2>
-                {% if has_datasets %}
-                    <span class="dhs-badge ready">
-                        <i class="fas fa-circle-check"></i> {{ dta_files_count }} Datasets Ready
-                    </span>
-                {% else %}
-                    <span class="dhs-badge missing">
-                        <i class="fas fa-triangle-exclamation"></i> No Datasets Found
-                    </span>
-                {% endif %}
-            </div>
-
-            <p style="font-size:0.875rem;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">
-                Run the DHS Python scripts / Jupyter notebooks to extract indicators directly from
-                uploaded Stata (.DTA) datasets and populate the dashboard.
-            </p>
-
-            {% if has_datasets %}
-                <div class="dataset-list">
-                    <span class="dataset-list-label">Detected Datasets (DHS/data/)</span>
-                    {% for file in dta_files %}
-                    <div class="dataset-file">
-                        <i class="fas fa-file-alt"></i> {{ file }}
-                    </div>
-                    {% endfor %}
-                    <div style="margin-top:10px;font-size:0.75rem;color:var(--text-muted);">
-                        Found <strong>{{ notebooks_count }}</strong> indicator notebooks across chapter folders.
-                    </div>
-                </div>
-
-                <form action="{% url 'admin_process_datasets' %}" method="post" id="process-datasets-form">
-                    {% csrf_token %}
-                    <div style="display:flex;gap:12px;align-items:flex-end;">
-                        <div class="form-group" style="flex:1;margin-bottom:0;">
-                            <label>Reporting Year</label>
-                            <select name="year">
-                                <option value="2025">2025</option>
-                                <option value="2024">2024</option>
-                                <option value="2023">2023</option>
-                                <option value="2022">2022</option>
-                                <option value="2021">2021</option>
-                                <option value="2020" selected>2020 (DHS 8)</option>
-                                <option value="2019">2019</option>
-                                <option value="2018">2018</option>
-                                <option value="2015">2015 (DHS 7)</option>
-                            </select>
-                        </div>
-                        <button type="submit" id="process-btn" class="btn btn-primary" style="height:40px;">
-                            <i class="fas fa-cogs" id="process-icon"></i>
-                            <span id="process-text">Process Datasets</span>
-                        </button>
-                    </div>
-                </form>
-
-                <div id="processing-status" style="display:none;margin-top:14px;" class="alert alert-info">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <div>
-                        <strong>Processing indicators…</strong><br>
-                        <span style="font-size:0.8rem;">Executing notebooks and loading survey data. This can take 1–2 minutes. Please do not close this page.</span>
-                    </div>
-                </div>
-
+            {% if uploaded_datasets %}
+                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;">Recode</th>
+                            <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;">Year</th>
+                            <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;">File</th>
+                            <th style="text-align:right;padding:8px 10px;color:var(--text-muted);font-weight:600;">Rows</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ds in uploaded_datasets %}
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:8px 10px;font-weight:700;color:var(--primary);">{{ ds.recode_type }}</td>
+                            <td style="padding:8px 10px;">{{ ds.year }}</td>
+                            <td style="padding:8px 10px;color:var(--text-muted);font-size:0.78rem;">{{ ds.original_filename }}</td>
+                            <td style="padding:8px 10px;text-align:right;">{{ ds.num_rows|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             {% else %}
                 <div class="alert alert-warning">
                     <i class="fas fa-triangle-exclamation"></i>
                     <div>
-                        <strong>No DHS Datasets Found</strong><br>
-                        <span style="font-size:0.8rem;">Upload DHS Stata (.DTA) datasets to the <code>DHS/data/</code> directory or use the Data Upload tool before processing.</span>
+                        <strong>No datasets uploaded yet.</strong><br>
+                        <span style="font-size:0.8rem;">
+                            Upload DHS Stata (.DTA) files to trigger automatic indicator computation.
+                        </span>
                     </div>
                 </div>
             {% endif %}
         </div>
 
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Quick Actions</h2></div>
+            <div class="quick-actions">
+                <a href="{% url 'admin_dataset_upload' %}" class="qa-btn blue">
+                    <i class="fas fa-upload"></i> Upload Dataset
+                </a>
+                <a href="{% url 'admin_user_create' %}" class="qa-btn indigo">
+                    <i class="fas fa-user-plus"></i> Add User
+                </a>
+                <a href="{% url 'admin_audit_logs' %}" class="qa-btn teal">
+                    <i class="fas fa-shield-halved"></i> Audit Logs
+                </a>
+            </div>
+        </div>
+
     </div><!-- /Left Column -->
 
-    <!-- Right Column -->
+    <!-- Right: System Status + Recent Logs -->
     <div style="display:flex;flex-direction:column;gap:20px;">
-
-        <!-- Browse Indicators -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Browse Indicators</h2>
-            </div>
-            <form action="{% url 'admin_indicators' %}" method="get" class="browse-form">
-                <div class="browse-select-wrap">
-                    <i class="fas fa-filter"></i>
-                    <select name="category">
-                        <option value="">Select a Category...</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat.id }}">{{ cat.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <i class="fas fa-chevron-down browse-chevron"></i>
-                </div>
-                <button type="submit" class="btn-go">Go</button>
-            </form>
-        </div>
 
         <!-- System Status -->
         <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">System Status</h2>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <div class="card-header"><h2 class="card-title">System Status</h2></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
                 <div class="status-dot"></div>
                 <span style="font-size:0.875rem;font-weight:600;color:var(--text-main);">System Online</span>
             </div>
-            <p style="font-size:0.8rem;color:var(--text-muted);line-height:1.6;">
-                Database connection active. Last backup: Today, 03:00 AM.
-            </p>
-            <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
-                    <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
-                        <i class="fas fa-layer-group" style="margin-right:6px;color:var(--primary);"></i>Categories
-                    </span>
-                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_chapters|default:"—" }}</span>
-                </div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
                     <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
                         <i class="fas fa-chart-bar" style="margin-right:6px;color:#7C3AED;"></i>Indicators
@@ -463,55 +381,49 @@
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
                     <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
-                        <i class="fas fa-map-pin" style="margin-right:6px;color:#EA580C;"></i>Districts
+                        <i class="fas fa-file-arrow-up" style="margin-right:6px;color:#EA580C;"></i>Datasets
                     </span>
-                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_districts|default:"—" }}</span>
+                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_datasets|default:"—" }}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
+                    <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
+                        <i class="fas fa-users" style="margin-right:6px;color:var(--primary);"></i>Users
+                    </span>
+                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_users|default:"—" }}</span>
                 </div>
             </div>
         </div>
 
-        <!-- Recent Audit Logs shortcut -->
-        <div class="card" style="padding:18px 24px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="width:38px;height:38px;border-radius:10px;background:rgba(79,70,229,0.1);display:flex;align-items:center;justify-content:center;color:var(--primary);">
-                        <i class="fas fa-shield-halved"></i>
-                    </div>
-                    <div>
-                        <div style="font-weight:600;font-size:0.875rem;color:var(--text-main);">Audit Logs</div>
-                        <div style="font-size:0.75rem;color:var(--text-muted);">Track all admin activity</div>
-                    </div>
-                </div>
+        <!-- Recent Audit Logs -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Recent Activity</h2>
                 <a href="{% url 'admin_audit_logs' %}" class="btn btn-ghost btn-sm">
-                    View Logs <i class="fas fa-arrow-right" style="font-size:0.7rem;"></i>
+                    View All <i class="fas fa-arrow-right" style="font-size:0.7rem;"></i>
                 </a>
             </div>
+            {% if recent_logs %}
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                {% for log in recent_logs %}
+                    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
+                        <i class="fas fa-circle{% if log.success %}-check" style="color:#16a34a{% else %}-xmark" style="color:#dc2626{% endif %};margin-top:2px;font-size:0.75rem;"></i>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:0.8rem;font-weight:600;color:var(--text-main);">{{ log.description|truncatechars:60 }}</div>
+                            <div style="font-size:0.72rem;color:var(--text-muted);">
+                                {{ log.user.username|default:"system" }} &middot; {{ log.timestamp|timesince }} ago
+                            </div>
+                        </div>
+                        <span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--bg-card);border:1px solid var(--border-color);color:var(--text-muted);">{{ log.action }}</span>
+                    </div>
+                {% endfor %}
+                </div>
+            {% else %}
+                <p style="font-size:0.85rem;color:var(--text-muted);">No activity recorded yet.</p>
+            {% endif %}
         </div>
 
     </div><!-- /Right Column -->
 
 </div>
 
-{% endblock %}
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('process-datasets-form');
-    if (form) {
-        form.addEventListener('submit', function () {
-            const btn  = document.getElementById('process-btn');
-            const icon = document.getElementById('process-icon');
-            const text = document.getElementById('process-text');
-            const statusDiv = document.getElementById('processing-status');
-            btn.disabled = true;
-            btn.style.opacity = '0.6';
-            btn.style.cursor = 'not-allowed';
-            if (icon) icon.className = 'fas fa-spinner fa-spin';
-            if (text) text.textContent = 'Processing…';
-            if (statusDiv) statusDiv.style.display = 'flex';
-        });
-    }
-});
-</script>
 {% endblock %}
