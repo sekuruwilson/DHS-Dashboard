@@ -151,3 +151,32 @@ class IndicatorJSONUploadForm(forms.Form):
     year = forms.IntegerField(initial=2022, widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 2000, 'max': 2100}))
     json_file = forms.FileField(widget=forms.FileInput(attrs={'class': 'form-control'}))
 
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput(attrs={'class': 'form-control'}))
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = single_file_clean(data, initial)
+        return result
+
+
+class DHSComputationForm(forms.Form):
+    year = forms.IntegerField(
+        initial=2022,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 2000, 'max': 2100}),
+        help_text="The year of the survey dataset (e.g., 2022 or 2025)."
+    )
+    dta_files = MultipleFileField(
+        help_text="Upload one or multiple raw .DTA files (e.g. RWPR81FL.DTA, RWIR81FL.DTA, etc.)."
+    )
+

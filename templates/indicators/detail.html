@@ -53,16 +53,42 @@
             <div id="chartBody" class="collapse show">
                 <div class="card-body p-4 pt-0">
                     <div class="d-flex justify-content-end align-items-center mb-3">
-                        {% if available_years %}
-                        <div class="me-auto d-flex align-items-center gap-2">
-                            <label for="yearFilter" class="small text-muted fw-bold text-nowrap mb-0">Year:</label>
-                            <select id="yearFilter" class="form-select form-select-sm rounded-pill px-3" onchange="filterByYear(this.value)" style="width: auto;">
-                                {% for yr in available_years %}
-                                <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
-                                {% endfor %}
-                            </select>
+                        <div class="me-auto d-flex align-items-center gap-3 flex-wrap">
+                            {% if available_years %}
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="yearFilter" class="small text-muted fw-bold text-nowrap mb-0">Year:</label>
+                                <select id="yearFilter" class="form-select form-select-sm rounded-pill px-3" onchange="updateFilter('year', this.value)" style="width: auto;">
+                                    {% for yr in available_years %}
+                                    <option value="{{ yr }}" {% if yr == selected_year %}selected{% endif %}>{{ yr }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+
+                            {% if provinces %}
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="provinceFilter" class="small text-muted fw-bold text-nowrap mb-0">Province:</label>
+                                <select id="provinceFilter" class="form-select form-select-sm rounded-pill px-3" onchange="updateFilter('province', this.value)" style="width: auto;">
+                                    <option value="">All Provinces</option>
+                                    {% for prov in provinces %}
+                                    <option value="{{ prov.id }}" {% if prov.id|stringformat:"s" == selected_province|stringformat:"s" %}selected{% endif %}>{{ prov.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+
+                            {% if available_labels|length > 1 %}
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="labelFilter" class="small text-muted fw-bold text-nowrap mb-0">Category:</label>
+                                <select id="labelFilter" class="form-select form-select-sm rounded-pill px-3" onchange="updateFilter('label', this.value)" style="width: auto;">
+                                    <option value="">All Categories</option>
+                                    {% for lbl in available_labels %}
+                                    <option value="{{ lbl }}" {% if lbl == selected_label %}selected{% endif %}>{{ lbl }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% endif %}
 
                         <button class="btn btn-purple btn-sm rounded-pill px-3 ms-2 text-white"
                             style="background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%); border: none;"
@@ -213,9 +239,13 @@
         });
     })();
 
-    function filterByYear(year) {
+    function updateFilter(key, value) {
         const url = new URL(window.location.href);
-        url.searchParams.set('year', year);
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
         window.location.href = url.toString();
     }
 </script>

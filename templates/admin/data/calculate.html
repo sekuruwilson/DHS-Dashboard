@@ -1,0 +1,146 @@
+{% extends 'admin/admin_base.html' %}
+{% block title %}Compute Indicators{% endblock %}
+{% block header %}Indicator Calculator{% endblock %}
+{% block extra_css %}
+<style>
+.ind-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 16px; }
+.ind-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: border-color 0.2s;
+}
+.ind-card:hover { border-color: var(--accent); }
+.ind-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.ind-name { font-size:0.85rem; font-weight:600; }
+.ind-chapter { font-size:0.72rem; color:var(--muted); margin-bottom:8px; }
+.req-badges { display:flex; gap:4px; flex-wrap:wrap; }
+.running-overlay {
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(0,0,0,0.6);
+    z-index:1000;
+    align-items:center; justify-content:center;
+    flex-direction:column; gap:16px;
+}
+.running-overlay.visible { display:flex; }
+.spinner {
+    width:48px; height:48px;
+    border:4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius:50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.chapter-filter { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.chapter-btn {
+    padding:5px 14px; border-radius:999px; font-size:0.78rem; font-weight:500;
+    border:1px solid var(--border); background:transparent; color:var(--muted);
+    cursor:pointer; transition:all 0.15s;
+}
+.chapter-btn.active, .chapter-btn:hover {
+    background:var(--accent); color:#fff; border-color:var(--accent);
+}
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+<div class="form-group" style="margin:0;">
+    <select id="yearSelect" style="width:120px;">
+        {% for y in available_years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+        {% if not available_years %}<option value="2022">2022</option>{% endif %}
+    </select>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if not available_years %}
+<div class="alert alert-warning">
+    <i class="fas fa-triangle-exclamation"></i>
+    <span>No datasets uploaded yet. <a href="{% url 'admin_dataset_upload' %}" style="color:var(--warning);text-decoration:underline;">Upload datasets</a> first before computing indicators.</span>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:20px;">
+    <p style="font-size:0.875rem;color:var(--muted);">
+        <i class="fas fa-circle-info" style="color:var(--accent);margin-right:6px;"></i>
+        Select a year and click <strong style="color:var(--text);">Compute</strong> on any indicator. The system will load the required dataset(s), calculate nationwide values (National, Province, District), and save them to the database.
+        <br><br>
+        <strong style="color:var(--text);">Available recodes:</strong>
+        {% for r in available_recodes %}
+        <span class="badge badge-green" style="margin-right:4px;">{{ r }}</span>
+        {% empty %}
+        <span style="color:var(--danger);">None — upload datasets first</span>
+        {% endfor %}
+    </p>
+</div>
+
+<!-- Chapter filter buttons -->
+<div class="chapter-filter" id="chapterFilter">
+    <button class="chapter-btn active" onclick="filterChapter('all', this)">All Chapters</button>
+    {% for ind in indicator_list %}{% ifchanged ind.chapter %}
+    <button class="chapter-btn" onclick="filterChapter('{{ ind.chapter|slugify }}', this)">{{ ind.chapter }}</button>
+    {% endifchanged %}{% endfor %}
+</div>
+
+<div class="ind-grid" id="indGrid">
+    {% for ind in indicator_list %}
+    <div class="ind-card" data-chapter="{{ ind.chapter|slugify }}">
+        <div class="ind-card-header">
+            <div>
+                <div class="ind-name">{{ ind.name }}</div>
+                <div class="ind-chapter">{{ ind.chapter }}</div>
+            </div>
+        </div>
+        <div class="req-badges" style="margin-bottom:12px;">
+            {% for r in ind.req %}
+            <span class="badge {% if r in available_recodes %}badge-green{% else %}badge-red{% endif %}">
+                <i class="fas {% if r in available_recodes %}fa-circle-check{% else %}fa-circle-xmark{% endif %}"></i> {{ r }}
+            </span>
+            {% endfor %}
+        </div>
+        <form method="post" action="{% url 'admin_indicator_run' %}" onsubmit="showRunning('{{ ind.name }}')">
+            {% csrf_token %}
+            <input type="hidden" name="chapter" value="{{ ind.chapter }}">
+            <input type="hidden" name="indicator" value="{{ ind.name }}">
+            <input type="hidden" name="year" id="yearInput_{{ forloop.counter }}" value="{{ available_years.0|default:'2022' }}">
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+                <i class="fas fa-calculator"></i> Compute (Year: <span class="yr-display">{{ available_years.0|default:'2022' }}</span>)
+            </button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Running overlay -->
+<div class="running-overlay" id="runningOverlay">
+    <div class="spinner"></div>
+    <div style="color:#fff;font-size:1rem;font-weight:600;" id="runningLabel">Computing...</div>
+    <div style="color:var(--muted);font-size:0.8rem;">This may take a few moments depending on dataset size.</div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const yearSel = document.getElementById('yearSelect');
+yearSel.addEventListener('change', () => {
+    document.querySelectorAll('[id^=yearInput_]').forEach(i => i.value = yearSel.value);
+    document.querySelectorAll('.yr-display').forEach(s => s.textContent = yearSel.value);
+});
+
+function showRunning(name) {
+    document.getElementById('runningLabel').textContent = 'Computing: ' + name;
+    document.getElementById('runningOverlay').classList.add('visible');
+}
+
+function filterChapter(chapter, btn) {
+    document.querySelectorAll('.chapter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.ind-card').forEach(card => {
+        card.style.display = (chapter === 'all' || card.dataset.chapter === chapter) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

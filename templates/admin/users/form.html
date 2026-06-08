@@ -1,0 +1,53 @@
+{% extends 'admin/admin_base.html' %}
+{% block title %}{{ title }} - User Management{% endblock %}
+{% block header %}{{ title }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'admin_user_list' %}" class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> Back to Users</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Username *</label>
+                <input type="text" name="username" class="form-control" value="{{ u.username|default:'' }}" required>
+            </div>
+            <div class="form-group">
+                <label>Email *</label>
+                <input type="email" name="email" class="form-control" value="{{ u.email|default:'' }}" required>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>First Name</label>
+                    <input type="text" name="first_name" class="form-control" value="{{ u.first_name|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label>Last Name</label>
+                    <input type="text" name="last_name" class="form-control" value="{{ u.last_name|default:'' }}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Password {% if u %}(Leave blank to keep current){% else %}*{% endif %}</label>
+                <input type="password" name="password" class="form-control" {% if not u %}required{% endif %}>
+            </div>
+            <div class="form-group" style="display:flex; gap: 20px; margin-top: 10px;">
+                <label style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" name="is_staff" {% if u.is_staff %}checked{% endif %}>
+                    Is Admin (Staff)
+                </label>
+                <label style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" name="is_active" {% if not u or u.is_active %}checked{% endif %}>
+                    Is Active
+                </label>
+            </div>
+            <div style="margin-top:20px;">
+                <button type="submit" class="btn btn-primary">Save User</button>
+                <a href="{% url 'admin_user_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

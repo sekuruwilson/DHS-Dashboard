@@ -1,16 +1,14 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.urls import reverse
 from django.db.models import Avg
 from .models import Indicator, Category, District, Province, IndicatorValue
-from .forms import SingleIndicatorDataForm, IndicatorJSONUploadForm
 from django.contrib import messages
 import json
 from .insights import generate_insights
 from .analytics import get_ranking_data, get_gap_analysis_data
 
 import csv
-from django.http import HttpResponse
 import os
 import requests
 import re
@@ -64,56 +62,6 @@ def verify_no_hallucinated_numbers(text, allowed_floats, is_streaming=False):
             pass
             
     return True, None
-
-def get_ai_response(query, context_data="", request=None):
-    """Consult the Hugging Face AI for a response (non-streaming fallback)."""
-    API_URL = "https://router.huggingface.co/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {os.getenv('HF_TOKEN')}",
-        "Content-Type": "application/json"
-    }
-    
-    system_message = build_system_message(context_data)
-    
-    # Load conversational history from session if request is provided
-    chat_history = []
-    if request is not None:
-        chat_history = request.session.get('chat_history', [])
-
-    messages_payload = [
-        {"role": "system", "content": system_message}
-    ]
-    for msg in chat_history:
-        messages_payload.append(msg)
-    messages_payload.append({"role": "user", "content": query})
-
-    payload = {
-        "messages": messages_payload,
-        "model": "moonshotai/Kimi-K2-Instruct",
-        "max_tokens": 600
-    }
-    
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        result = response.json()
-        if "choices" in result:
-            ans = result["choices"][0]["message"]["content"].strip()
-            allowed = get_allowed_numbers(context_data, query)
-            is_ok, offending = verify_no_hallucinated_numbers(ans, allowed)
-            if not is_ok:
-                return f"Verification check triggered: An unauthorized data value ({offending}) was detected. Here is the verified database context:\n\n{context_data.strip()}"
-            
-            # Save history to session if request is provided
-            if request is not None:
-                chat_history.append({"role": "user", "content": query})
-                chat_history.append({"role": "assistant", "content": ans})
-                request.session['chat_history'] = chat_history[-10:]
-                request.session.save()
-                
-            return ans
-        return f"I found this in our records:\n\n{context_data}"
-    except Exception as e:
-        return f"I found this in our records:\n\n{context_data}\n\n(AI module offline: {str(e)})"
 
 
 def build_system_message(context_data=""):
@@ -273,12 +221,34 @@ def indicator_detail(request, pk):
             target_year = int(selected_year_str)
             target_ind = other_indicators.filter(year=target_year).first()
             if target_ind and target_ind.pk != indicator.pk:
-                return redirect('indicator_detail', pk=target_ind.pk)
+                # Preserve other query params when redirecting
+                import urllib.parse
+                params = request.GET.copy()
+                if 'year' in params:
+                    del params['year']
+                query_string = urllib.parse.urlencode(params)
+                url = reverse('indicator_detail', args=[target_ind.pk])
+                if query_string:
+                    url += f"?{query_string}"
+                return redirect(url)
         except ValueError:
             pass
+            
+    # Provinces for filtering
+    provinces = Province.objects.all().order_by('name')
+    selected_province = request.GET.get('province', '')
+    
+    # Labels for filtering
+    all_values = indicator.values.all().select_related('district')
+    available_labels = list(all_values.values_list('data_label', flat=True).distinct())
+    selected_label = request.GET.get('label', '')
         
-    # Query relational data for the selected indicator
-    values = indicator.values.all().select_related('district')
+    # Apply filters
+    values = all_values
+    if selected_province:
+        values = values.filter(district__province_id=selected_province)
+    if selected_label:
+        values = values.filter(data_label=selected_label)
     
     labels = []
     datasets_map = {} # label -> [values]
@@ -311,6 +281,10 @@ def indicator_detail(request, pk):
         'raw_values': values,
         'available_years': available_years,
         'selected_year': selected_year,
+        'provinces': provinces,
+        'selected_province': selected_province,
+        'available_labels': available_labels,
+        'selected_label': selected_label,
     }
     return render(request, 'indicators/detail.html', context)
 

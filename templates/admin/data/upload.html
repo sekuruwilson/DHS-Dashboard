@@ -1,0 +1,56 @@
+{% extends 'admin/admin_base.html' %}
+{% block title %}Upload Datasets{% endblock %}
+{% block header %}Upload DHS Datasets{% endblock %}
+{% block content %}
+<div class="grid-2">
+  <div class="card">
+    <div class="card-header"><h2 class="card-title"><i class="fas fa-upload" style="color:var(--accent);margin-right:8px"></i>Upload .DTA Files</h2></div>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-group">
+        <label>Survey Year</label>
+        <input type="number" name="year" placeholder="e.g. 2022" min="2000" max="2099" required>
+      </div>
+      <div class="form-group">
+        <label>DTA Files (HR, PR, IR, MR, KR…)</label>
+        <input type="file" name="dta_files" accept=".dta,.DTA" multiple required>
+        <p style="margin-top:8px;font-size:0.78rem;color:var(--muted);">The recode type is auto-detected from the filename (e.g. RWIR81FL.DTA → IR).</p>
+      </div>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Upload & Register</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title"><i class="fas fa-database" style="color:var(--accent2);margin-right:8px"></i>Registered Datasets</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Recode</th><th>Year</th><th>File</th><th>Rows</th><th>Vars</th><th></th></tr></thead>
+        <tbody>
+          {% for ds in uploaded %}
+          <tr>
+            <td><span class="badge badge-blue">{{ ds.recode_type }}</span></td>
+            <td>{{ ds.year }}</td>
+            <td style="font-size:0.78rem;color:var(--muted);">{{ ds.original_filename }}</td>
+            <td>{{ ds.num_rows|default:"—" }}</td>
+            <td>{{ ds.num_vars|default:"—" }}</td>
+            <td>
+              <form method="post" action="{% url 'admin_dataset_delete' ds.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this dataset?')"><i class="fas fa-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">No datasets uploaded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:16px;padding:16px;background:rgba(79,126,247,0.06);border-radius:10px;border:1px solid rgba(79,126,247,0.15);">
+      <p style="font-size:0.8rem;color:var(--muted);"><i class="fas fa-circle-info" style="color:var(--accent);margin-right:6px;"></i><strong>File naming:</strong> Filenames should contain the recode code (HR, PR, IR, MR, KR, BR, CR) to be auto-identified. e.g. <code style="background:var(--bg);padding:2px 6px;border-radius:4px;">RWIR81FL.DTA</code></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

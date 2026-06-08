@@ -1,0 +1,387 @@
+{% extends 'admin/admin_base.html' %}
+{% block title %}System Audit Logs{% endblock %}
+{% block header %}Audit Logs{% endblock %}
+
+{% block extra_css %}
+<style>
+    .action-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+    }
+    .action-UPLOAD      { background: rgba(79,70,229,0.1);  color: #4F46E5; }
+    .action-COMPUTE     { background: rgba(124,91,248,0.1); color: #7C3AED; }
+    .action-LOGIN       { background: rgba(16,185,129,0.1); color: #059669; }
+    .action-LOGOUT      { background: rgba(107,114,128,0.1);color: #6B7280; }
+    .action-USER_CREATE { background: rgba(245,158,11,0.1); color: #D97706; }
+    .action-USER_UPDATE { background: rgba(245,158,11,0.1); color: #D97706; }
+    .action-USER_DELETE { background: rgba(239,68,68,0.1);  color: #DC2626; }
+    .action-DATA_DELETE { background: rgba(239,68,68,0.1);  color: #DC2626; }
+    .action-OTHER       { background: rgba(107,114,128,0.1);color: #6B7280; }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-success { background: rgba(16,185,129,0.1); color: #059669; }
+    .status-failed  { background: rgba(239,68,68,0.1);  color: #DC2626; }
+
+    .ip-code {
+        font-family: 'Courier New', monospace;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        background: rgba(107,114,128,0.06);
+        padding: 2px 7px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+    }
+
+    .summary-bar {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .summary-chip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 12px 18px;
+        font-size: 0.85rem;
+        box-shadow: var(--card-shadow);
+    }
+    .summary-chip strong {
+        font-size: 1.3rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+    }
+    .summary-chip.green strong { color: var(--success); }
+    .summary-chip.red   strong { color: var(--danger); }
+    .summary-chip.blue  strong { color: var(--primary); }
+    .summary-chip i { font-size: 1.1rem; opacity: 0.7; }
+    .summary-chip.blue  i { color: var(--primary); }
+    .summary-chip.green i { color: var(--success); }
+    .summary-chip.red   i { color: var(--danger); }
+
+    .details-toggle {
+        color: var(--primary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 0;
+        font-family: inherit;
+        font-weight: 500;
+    }
+    .details-toggle:hover { text-decoration: underline; }
+    .details-box {
+        margin-top: 6px;
+        padding: 8px 10px;
+        background: rgba(79,70,229,0.04);
+        border-left: 3px solid var(--primary);
+        border-radius: 4px;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        display: none;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-muted);
+    }
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.2;
+        display: block;
+        color: var(--primary);
+    }
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'admin_audit_logs' %}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-rotate-right"></i> Refresh
+</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary Bar -->
+<div class="summary-bar">
+    <div class="summary-chip blue">
+        <i class="fas fa-list-check"></i>
+        <div>
+            <strong>{{ total_count }}</strong>
+            <div style="font-size:0.7rem;color:var(--muted);">Total Events</div>
+        </div>
+    </div>
+    <div class="summary-chip green">
+        <i class="fas fa-circle-check"></i>
+        <div>
+            <strong>{{ success_count }}</strong>
+            <div style="font-size:0.7rem;color:var(--muted);">Successful</div>
+        </div>
+    </div>
+    <div class="summary-chip red">
+        <i class="fas fa-circle-xmark"></i>
+        <div>
+            <strong>{{ failed_count }}</strong>
+            <div style="font-size:0.7rem;color:var(--muted);">Failed</div>
+        </div>
+    </div>
+    <div class="summary-chip" style="margin-left:auto;">
+        <i class="fas fa-clock" style="color:var(--muted);"></i>
+        <div style="font-size:0.78rem;color:var(--muted);">30 per page · Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<form method="get" action="{% url 'admin_audit_logs' %}" class="filter-bar">
+    <div class="filter-group">
+        <label><i class="fas fa-tag"></i> Action Type</label>
+        <select name="action">
+            <option value="">All Actions</option>
+            {% for code, label in action_choices %}
+                <option value="{{ code }}" {% if action_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label><i class="fas fa-user"></i> Username</label>
+        <input type="text" name="user" value="{{ user_filter }}" placeholder="Search by user...">
+    </div>
+    <div class="filter-group">
+        <label><i class="fas fa-circle-half-stroke"></i> Status</label>
+        <select name="success">
+            <option value="">All Statuses</option>
+            <option value="1" {% if success_filter == '1' %}selected{% endif %}>✅ Success</option>
+            <option value="0" {% if success_filter == '0' %}selected{% endif %}>❌ Failed</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label><i class="fas fa-calendar-day"></i> From Date</label>
+        <input type="date" name="date_from" value="{{ date_from }}">
+    </div>
+    <div class="filter-group">
+        <label><i class="fas fa-calendar-day"></i> To Date</label>
+        <input type="date" name="date_to" value="{{ date_to }}">
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+        <button type="submit" class="btn btn-primary btn-sm">
+            <i class="fas fa-filter"></i> Filter
+        </button>
+        <a href="{% url 'admin_audit_logs' %}" class="btn btn-ghost btn-sm">
+            <i class="fas fa-xmark"></i> Clear
+        </a>
+    </div>
+</form>
+
+<!-- Active Filters Indicator -->
+{% if action_filter or user_filter or success_filter or date_from or date_to %}
+<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+    <span style="font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted);">
+        <i class="fas fa-filter"></i> Active Filters:
+    </span>
+
+    {% if action_filter %}
+    <a href="?user={{ user_filter }}&success={{ success_filter }}&date_from={{ date_from }}&date_to={{ date_to }}"
+       style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(79,126,247,0.15);color:#7ba7fb;text-decoration:none;">
+        <i class="fas fa-bolt"></i> Action: {{ action_filter }}
+        <i class="fas fa-xmark" style="opacity:0.7;"></i>
+    </a>
+    {% endif %}
+
+    {% if user_filter %}
+    <a href="?action={{ action_filter }}&success={{ success_filter }}&date_from={{ date_from }}&date_to={{ date_to }}"
+       style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(124,91,248,0.15);color:#a78bfa;text-decoration:none;">
+        <i class="fas fa-user"></i> User: {{ user_filter }}
+        <i class="fas fa-xmark" style="opacity:0.7;"></i>
+    </a>
+    {% endif %}
+
+    {% if success_filter == '1' %}
+    <a href="?action={{ action_filter }}&user={{ user_filter }}&date_from={{ date_from }}&date_to={{ date_to }}"
+       style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(34,197,94,0.15);color:#4ade80;text-decoration:none;">
+        <i class="fas fa-circle-check"></i> Status: Success
+        <i class="fas fa-xmark" style="opacity:0.7;"></i>
+    </a>
+    {% elif success_filter == '0' %}
+    <a href="?action={{ action_filter }}&user={{ user_filter }}&date_from={{ date_from }}&date_to={{ date_to }}"
+       style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(239,68,68,0.15);color:#f87171;text-decoration:none;">
+        <i class="fas fa-circle-xmark"></i> Status: Failed
+        <i class="fas fa-xmark" style="opacity:0.7;"></i>
+    </a>
+    {% endif %}
+
+    {% if date_from %}
+    <a href="?action={{ action_filter }}&user={{ user_filter }}&success={{ success_filter }}&date_to={{ date_to }}"
+       style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(245,158,11,0.15);color:#fbbf24;text-decoration:none;">
+        <i class="fas fa-calendar-day"></i> From: {{ date_from }}
+        <i class="fas fa-xmark" style="opacity:0.7;"></i>
+    </a>
+    {% endif %}
+
+    {% if date_to %}
+    <a href="?action={{ action_filter }}&user={{ user_filter }}&success={{ success_filter }}&date_from={{ date_from }}"
+       style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(245,158,11,0.15);color:#fbbf24;text-decoration:none;">
+        <i class="fas fa-calendar-day"></i> To: {{ date_to }}
+        <i class="fas fa-xmark" style="opacity:0.7;"></i>
+    </a>
+    {% endif %}
+
+    <span style="margin-left:4px; font-size:0.8rem; color:var(--muted);">
+        — {{ page_obj.paginator.count }} result{{ page_obj.paginator.count|pluralize }} found
+    </span>
+
+    <a href="{% url 'admin_audit_logs' %}" style="margin-left:auto;font-size:0.78rem;color:var(--danger);text-decoration:none;">
+        <i class="fas fa-xmark"></i> Clear all
+    </a>
+</div>
+{% endif %}
+
+<!-- Logs Table -->
+<div class="card" style="padding:0; overflow:hidden;">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><i class="fas fa-clock" style="margin-right:5px;"></i>Timestamp</th>
+                    <th><i class="fas fa-user" style="margin-right:5px;"></i>User</th>
+                    <th><i class="fas fa-network-wired" style="margin-right:5px;"></i>IP Address</th>
+                    <th><i class="fas fa-bolt" style="margin-right:5px;"></i>Action</th>
+                    <th>Description</th>
+                    <th><i class="fas fa-signal" style="margin-right:5px;"></i>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in page_obj %}
+                <tr>
+                    <td style="white-space:nowrap; color:var(--text-muted); font-size:0.8rem;">
+                        <i class="fas fa-calendar-day" style="margin-right:4px;opacity:0.5;"></i>
+                        {{ log.timestamp|date:"Y-m-d" }}
+                        <br>
+                        <span style="font-size:0.75rem;">{{ log.timestamp|date:"H:i:s" }}</span>
+                    </td>
+                    <td>
+                        {% if log.user %}
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#818CF8);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;flex-shrink:0;">
+                                    {{ log.user.username|make_list|first|upper }}
+                                </div>
+                                <span style="font-weight:500;">{{ log.user.username }}</span>
+                            </div>
+                        {% else %}
+                            <span style="color:var(--text-muted);font-size:0.8rem;"><i class="fas fa-robot"></i> System</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.ip_address %}
+                            <span class="ip-code">{{ log.ip_address }}</span>
+                        {% else %}
+                            <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="action-badge action-{{ log.action }}">
+                            {% if log.action == 'UPLOAD' %}<i class="fas fa-upload"></i>
+                            {% elif log.action == 'COMPUTE' %}<i class="fas fa-calculator"></i>
+                            {% elif log.action == 'LOGIN' %}<i class="fas fa-right-to-bracket"></i>
+                            {% elif log.action == 'LOGOUT' %}<i class="fas fa-right-from-bracket"></i>
+                            {% elif log.action == 'USER_CREATE' %}<i class="fas fa-user-plus"></i>
+                            {% elif log.action == 'USER_UPDATE' %}<i class="fas fa-user-pen"></i>
+                            {% elif log.action == 'USER_DELETE' %}<i class="fas fa-user-minus"></i>
+                            {% elif log.action == 'DATA_DELETE' %}<i class="fas fa-trash"></i>
+                            {% else %}<i class="fas fa-circle-info"></i>{% endif %}
+                            {{ log.get_action_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="font-size:0.85rem;">{{ log.description }}</div>
+                        {% if log.details %}
+                            <button class="details-toggle" onclick="toggleDetails(this)">
+                                <i class="fas fa-chevron-down"></i> Show details
+                            </button>
+                            <div class="details-box">{{ log.details }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.success %}
+                            <span class="status-pill status-success">
+                                <i class="fas fa-circle-check"></i> Success
+                            </span>
+                        {% else %}
+                            <span class="status-pill status-failed">
+                                <i class="fas fa-circle-xmark"></i> Failed
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <i class="fas fa-shield-halved"></i>
+                            <div style="font-size:1rem;font-weight:600;margin-bottom:6px;">No audit logs found</div>
+                            <div style="font-size:0.85rem;">System activity will appear here once admin actions are performed.</div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination" style="padding: 20px;">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&action={{ action_filter }}&user={{ user_filter }}&success={{ success_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="page-link">
+                <i class="fas fa-chevron-left"></i> Prev
+            </a>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <span class="page-link active">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <a href="?page={{ num }}&action={{ action_filter }}&user={{ user_filter }}&success={{ success_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="page-link">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&action={{ action_filter }}&user={{ user_filter }}&success={{ success_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="page-link">
+                Next <i class="fas fa-chevron-right"></i>
+            </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleDetails(btn) {
+    const box = btn.nextElementSibling;
+    const isOpen = box.style.display === 'block';
+    box.style.display = isOpen ? 'none' : 'block';
+    btn.innerHTML = isOpen
+        ? '<i class="fas fa-chevron-down"></i> Show details'
+        : '<i class="fas fa-chevron-up"></i> Hide details';
+}
+</script>
+{% endblock %}

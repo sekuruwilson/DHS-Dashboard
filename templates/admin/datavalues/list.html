@@ -1,77 +1,99 @@
 {% extends 'admin/admin_base.html' %}
 
-{% block title %}Data Values - RDHS Admin{% endblock %}
+{% block title %}Data Values — RDHS Admin{% endblock %}
 {% block header %}Data Values{% endblock %}
 
 {% block content %}
-<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-    <div>
-        <h2 class="text-lg font-semibold text-gray-800">Recorded Data</h2>
-        <p class="text-gray-500 text-sm">Manage individual data points for indicators.</p>
-    </div>
-    <div class="flex gap-2">
-        <a href="{% url 'admin_datavalue_create' %}"
-            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-sm text-sm">
+<!-- Header & Controls -->
+<div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-body d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
+        <div>
+            <h5 class="card-title mb-1" style="font-family: 'Outfit', sans-serif; font-weight: 700;">Recorded Statistics</h5>
+            <p class="text-muted small mb-0">Manage individual data points for indicators across districts.</p>
+        </div>
+        <a href="{% url 'admin_datavalue_create' %}" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm fw-semibold">
             <i class="fas fa-plus"></i> Add New Data
         </a>
     </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <table class="w-full text-left border-collapse">
-        <thead class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider font-semibold border-b border-gray-200">
-            <tr>
-                <th class="px-6 py-4">Indicator</th>
-                <th class="px-6 py-4">District</th>
-                <th class="px-6 py-4">Label</th>
-                <th class="px-6 py-4">Year</th>
-                <th class="px-6 py-4">Value</th>
-                <th class="px-6 py-4 text-right">Actions</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-            {% for value in page_obj %}
-            <tr class="hover:bg-gray-50 transition-colors group">
-                <td class="px-6 py-4 font-medium text-gray-800 max-w-md truncate">{{ value.indicator.name }}</td>
-                <td class="px-6 py-4 text-gray-600 text-sm">{{ value.district.name }}</td>
-                <td class="px-6 py-4 text-gray-500 text-sm">{{ value.data_label }}</td>
-                <td class="px-6 py-4 text-gray-500 text-sm">{{ value.year }}</td>
-                <td class="px-6 py-4 text-gray-800 font-semibold text-sm">{{ value.value }}</td>
-                <td class="px-6 py-4 text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <a href="{% url 'admin_datavalue_edit' value.pk %}"
-                        class="text-blue-600 hover:text-blue-800 p-1 bg-blue-50 rounded" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                    <a href="{% url 'admin_datavalue_delete' value.pk %}"
-                        class="text-red-600 hover:text-red-800 p-1 bg-red-50 rounded" title="Delete">
-                        <i class="fas fa-trash-alt"></i>
-                    </a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-gray-500">
-                    No data values found. <a href="{% url 'admin_datavalue_create' %}"
-                        class="text-blue-600 hover:underline">Add one</a>.
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<!-- Table Card -->
+<div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-uppercase fs-7 font-bold text-muted border-bottom">
+                <tr>
+                    <th class="px-4 py-3" style="font-size: 0.75rem; letter-spacing: 0.08em;">Indicator</th>
+                    <th class="px-4 py-3" style="font-size: 0.75rem; letter-spacing: 0.08em;">District</th>
+                    <th class="px-4 py-3" style="font-size: 0.75rem; letter-spacing: 0.08em;">Label</th>
+                    <th class="px-4 py-3" style="font-size: 0.75rem; letter-spacing: 0.08em;">Year</th>
+                    <th class="px-4 py-3" style="font-size: 0.75rem; letter-spacing: 0.08em;">Value</th>
+                    <th class="px-4 py-3 text-end" style="font-size: 0.75rem; letter-spacing: 0.08em;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for value in page_obj %}
+                <tr>
+                    <td class="px-4 py-3 fw-medium text-dark text-truncate" style="max-width: 350px;">{{ value.indicator.name }}</td>
+                    <td class="px-4 py-3 text-muted text-sm">{{ value.district.name }}</td>
+                    <td class="px-4 py-3">
+                        <span class="badge bg-light text-secondary border px-2 py-1" style="font-size: 0.725rem; font-weight: 600;">
+                            {{ value.data_label }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-muted text-sm fw-semibold">{{ value.year }}</td>
+                    <td class="px-4 py-3 fw-bold text-primary text-sm">{{ value.value }}</td>
+                    <td class="px-4 py-3 text-end">
+                        <div class="d-inline-flex gap-2">
+                            <a href="{% url 'admin_datavalue_edit' value.pk %}" class="btn btn-sm btn-light text-primary border" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'admin_datavalue_delete' value.pk %}" class="btn btn-sm btn-light text-danger border" title="Delete">
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-4 py-5 text-center text-muted">
+                        <div class="py-4">
+                            <i class="fas fa-database text-muted mb-2" style="font-size: 2rem;"></i>
+                            <p class="mb-0">No data values found. <a href="{% url 'admin_datavalue_create' %}" class="text-primary fw-semibold">Add one now</a>.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
+    <!-- Pagination -->
     {% if page_obj.has_other_pages %}
-    <div class="px-6 py-4 border-t border-gray-200 flex justify-center bg-gray-50">
-        <div class="flex gap-2">
-            {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}"
-                class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm">Previous</a>
-            {% endif %}
-            <span class="px-3 py-1 text-gray-500 text-sm">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-            {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}"
-                class="px-3 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm">Next</a>
-            {% endif %}
-        </div>
+    <div class="card-footer bg-light border-top d-flex justify-content-center py-3">
+        <nav aria-label="Data values navigation">
+            <ul class="pagination pagination-sm mb-0 align-items-center gap-2">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link border rounded px-3" href="?page={{ page_obj.previous_page_number }}">
+                        Previous
+                    </a>
+                </li>
+                {% endif %}
+                
+                <li class="page-item disabled">
+                    <span class="text-muted small px-2">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link border rounded px-3" href="?page={{ page_obj.next_page_number }}">
+                        Next
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
     </div>
     {% endif %}
 </div>
