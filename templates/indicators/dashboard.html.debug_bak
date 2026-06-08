@@ -1,0 +1,503 @@
+{% extends 'base.html' %}
+
+{% load static %}
+{% load indicator_filters %}
+
+
+{% block title %}Dashboard - RDHS Viz{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #provinceMap {
+        height: 500px;
+        width: 100%;
+        border-radius: 1rem;
+        z-index: 1;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+    }
+
+    .district-label {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-weight: 500;
+        color: #1e293b;
+        text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        pointer-events: none;
+    }
+
+    .info {
+        padding: 10px 14px;
+        font: 14px/16px Arial, Helvetica, sans-serif;
+        background: white;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        min-width: 180px;
+        color: #1e293b !important;
+        /* Explicit text color */
+        z-index: 1000;
+    }
+
+    .info h6 {
+        margin: 0 0 8px;
+        font-weight: 700;
+        color: #1e293b;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 4px;
+        font-size: 14px;
+    }
+
+    .info b {
+        color: #4f46e5;
+        /* Highlight district name */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary Stats -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card glass-card p-4 border-0 ">
+            <!-- Animated Background Elements -->
+            <div class="card-bg-animation"></div>
+            <div class="floating-shapes">
+                <div class="shape shape-1"></div>
+                <div class="shape shape-2"></div>
+                <div class="shape shape-3"></div>
+            </div>
+
+            <div class="card-body p-4 position-relative" style="z-index: 2;">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div class="premium-icon-box icon-box-variant-1">
+                        <div class="icon-inner">
+                            <i class="bi bi-book-fill"></i>
+                        </div>
+                        <div class="icon-glow"></div>
+                    </div>
+                    <div class="stat-badge">
+                        <i class="bi bi-arrow-up-short"></i>
+                        <span class="small fw-bold">12%</span>
+                    </div>
+                </div>
+
+                <div class="stat-content">
+                    <h6 class="premium-label mb-3">Total Chapters</h6>
+                    <div class="d-flex align-items-baseline gap-2 mb-3">
+                        <h1 class="premium-value mb-0" data-value="{{ total_chapters }}">{{ total_chapters }}</h1>
+                        <span class="premium-unit">categories</span>
+                    </div>
+                    <p class="premium-description mb-0">
+                        <span class="description-highlight">●</span> Organized data structure
+                    </p>
+                </div>
+            </div>
+
+            <!-- Decorative Border -->
+            <div class="premium-border"></div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card glass-card p-4 border-0 ">
+            <!-- Animated Background Elements -->
+            <div class="card-bg-animation"></div>
+            <div class="floating-shapes">
+                <div class="shape shape-1"></div>
+                <div class="shape shape-2"></div>
+                <div class="shape shape-3"></div>
+            </div>
+
+            <div class="card-body p-4 position-relative" style="z-index: 2;">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div class="premium-icon-box icon-box-variant-2">
+                        <div class="icon-inner">
+                            <i class="bi bi-bar-chart-line-fill"></i>
+                        </div>
+                        <div class="icon-glow"></div>
+                    </div>
+                    <div class="stat-badge">
+                        <i class="bi bi-arrow-up-short"></i>
+                        <span class="small fw-bold">8%</span>
+                    </div>
+                </div>
+
+                <div class="stat-content">
+                    <h6 class="premium-label mb-3">Active Indicators</h6>
+                    <div class="d-flex align-items-baseline gap-2 mb-3">
+                        <h1 class="premium-value mb-0" data-value="{{ total_indicators }}">{{ total_indicators }}</h1>
+                        <span class="premium-unit">metrics</span>
+                    </div>
+                    <p class="premium-description mb-0">
+                        <span class="description-highlight">●</span> Tracked measurements
+                    </p>
+                </div>
+            </div>
+
+            <!-- Decorative Border -->
+            <div class="premium-border"></div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card glass-card p-4 border-0 ">
+            <!-- Animated Background Elements -->
+            <div class="card-bg-animation"></div>
+            <div class="floating-shapes">
+                <div class="shape shape-1"></div>
+                <div class="shape shape-2"></div>
+                <div class="shape shape-3"></div>
+            </div>
+
+            <div class="card-body p-4 position-relative" style="z-index: 2;">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div class="premium-icon-box icon-box-variant-3">
+                        <div class="icon-inner">
+                            <i class="bi bi-database-fill"></i>
+                        </div>
+                        <div class="icon-glow"></div>
+                    </div>
+                    <div class="stat-badge">
+                        <i class="bi bi-arrow-up-short"></i>
+                        <span class="small fw-bold">24%</span>
+                    </div>
+                </div>
+
+                <div class="stat-content">
+                    <h6 class="premium-label mb-3">Data Points</h6>
+                    <div class="d-flex align-items-baseline gap-2 mb-3">
+                        <h1 class="premium-value mb-0" data-value="{{ total_values }}">{{ total_values }}</h1>
+                        <span class="premium-unit">records</span>
+                    </div>
+                    <p class="premium-description mb-0">
+                        <span class="description-highlight">●</span> Total data analyzed
+                    </p>
+                </div>
+            </div>
+
+            <!-- Decorative Border -->
+            <div class="premium-border"></div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<!-- Spatial Context Section -->
+<div class="row mb-5 animate-fade-in">
+    <div class="col-12">
+        <div class="card glass-card border-0 overflow-hidden shadow-sm">
+            <div
+                class="card-header bg-white border-0 py-4 px-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div>
+                    <h5 class="fw-bold mb-1">Regional Spatial Context: Eastern Province</h5>
+                    <p class="text-muted small mb-0">Visualizing: <span id="active-indicator-name"
+                            class="text-primary fw-medium">{{ focus_indicator.name }}</span></p>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="indicator-select-wrapper" style="min-width: 280px;">
+                        <div class="input-group input-group-sm">
+                            <label class="input-group-text bg-light text-muted small border-0"
+                                for="mapIndicatorSelect">Indicator</label>
+                            <select id="mapIndicatorSelect"
+                                class="form-select glass-input border-0 shadow-sm py-2 px-3 small">
+                                {% for ind in all_indicators %}
+                                <option value="{{ ind.id }}" {% if ind == focus_indicator %}selected{% endif %}>
+                                    {{ ind.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="premium-icon-box d-none d-md-flex"
+                        style="width: 40px; height: 40px; background: var(--primary-light); color: var(--primary-color); border-radius: 10px; align-items: center; justify-content: center;">
+                        <i class="bi bi-geo-alt-fill"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0 position-relative">
+                <div id="provinceMap"></div>
+            </div>
+            <div class="card-footer bg-light bg-opacity-50 border-0 py-3 px-4">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <p class="small text-muted mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            This map shows the provincial distribution of health metrics across Eastern Rwanda.
+                            <strong>Hover over districts</strong> for real-time data insights.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <a href="{% url 'correlation_analytics' %}?type=map&indicator={{ focus_indicator.id }}"
+                            class="btn btn-sm btn-link text-primary text-decoration-none fw-bold">
+                            Advanced Map Analytics <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% json_script focus_data "focus-data-script" %}
+
+<!-- Chapters Accordion -->
+<div class="accordion accordion-flush bg-transparent" id="chaptersAccordion">
+    {% for category in categories %}
+    <div class="accordion-item glass-card mb-3 border-0 rounded-4 overflow-hidden chapter-item"
+        data-chapter-name="{{ category.name|lower }}">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed py-4 px-4 bg-transparent fw-bold" type="button"
+                data-bs-toggle="collapse" data-bs-target="#collapse{{ category.id }}">
+                <span class="me-3 fw-normal text-muted opacity-50">{{ forloop.counter|stringformat:"02d" }}</span>
+                {{ category.name|chapter_name_only }}
+            </button>
+        </h2>
+        <div id="collapse{{ category.id }}" class="accordion-collapse collapse" data-bs-parent="#chaptersAccordion">
+            <div class="accordion-body px-4 pb-4">
+                <div class="row g-3">
+                    {% for indicator in category.indicators.all %}
+                    <div class="col-md-6 col-lg-4 indicator-card" data-indicator-name="{{ indicator.name|lower }}">
+                        <a href="{% url 'indicator_detail' indicator.pk %}"
+                            class="card indicator-link-card h-100 border-0 p-3 text-decoration-none">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box me-3">
+                                    <i class="bi bi-bar-chart-fill text-primary"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1 text-dark fw-bold">{{ indicator.name }}</h6>
+                                    <p class="small text-muted mb-0">{{ indicator.unit }}</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center py-4">
+
+                        <p class="text-muted small">No indicators found for this chapter yet.</p>
+
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- No Results Placeholder -->
+<div id="noResults" class="text-center py-5 d-none">
+    <h4 class="text-muted">No indicators match your search.</h4>
+    <p class="text-muted small">Try different keywords or browse our categories below.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- Dashboard Map Implementation ---
+        (function () {
+            const mapEl = document.getElementById('provinceMap');
+            const indicatorSelect = document.getElementById('mapIndicatorSelect');
+            if (!mapEl || !indicatorSelect) return;
+
+            // Load initial focus data from json_script
+            let focusData = JSON.parse(document.getElementById('focus-data-script').textContent);
+            let indicatorUnit = "{{ focus_indicator.unit }}";
+            let activeIndicatorName = "{{ focus_indicator.name }}";
+            let geoJsonLayer;
+
+            const map = L.map('provinceMap', {
+                zoomControl: true,
+                dragging: true,
+                scrollWheelZoom: false,
+                doubleClickZoom: true
+            }).setView([-1.9, 30.1], 9);
+
+            // Info Control
+            const info = L.control();
+            info.onAdd = function (map) {
+                this._div = L.DomUtil.create('div', 'info');
+                this.update();
+                return this._div;
+            };
+
+            info.update = function (props) {
+                if (props) {
+                    const name = props.shapeName;
+                    const val = focusData[name];
+                    const valDisplay = (val !== undefined && val !== null) ? val + ' ' + indicatorUnit : 'No data';
+
+                    this._div.innerHTML = `<h6>District Insights</h6>
+                                         <b>${name}</b><br />
+                                         <span class="text-muted small">${activeIndicatorName}</span><br />
+                                         <span class="fw-bold">${valDisplay}</span>`;
+                } else {
+                    this._div.innerHTML = '<h6>District Insights</h6>Hover over a district';
+                }
+            };
+
+            info.addTo(map);
+
+            function getColor(v) {
+                return v > 80 ? '#1e3a8a' :
+                    v > 60 ? '#2563eb' :
+                        v > 40 ? '#60a5fa' :
+                            v > 20 ? '#93c5fd' :
+                                '#dbeafe';
+            }
+
+            function updateMapStyles() {
+                if (!geoJsonLayer) return;
+                geoJsonLayer.eachLayer(function (layer) {
+                    const name = layer.feature.properties.shapeName;
+                    const val = focusData[name] || 0;
+                    layer.setStyle({
+                        fillColor: getColor(val)
+                    });
+
+                    const valDisplay = (focusData[name] !== undefined && focusData[name] !== null) ? focusData[name] + ' ' + indicatorUnit : 'No data';
+                    layer.bindPopup(`<strong>${name} District</strong><br>${activeIndicatorName}: ${valDisplay}`);
+                });
+            }
+
+            fetch('/static/data/eastern_province.json')
+                .then(response => response.json())
+                .then(data => {
+                    geoJsonLayer = L.geoJSON(data, {
+                        style: function (feature) {
+                            const val = focusData[feature.properties.shapeName] || 0;
+                            return {
+                                fillColor: getColor(val),
+                                weight: 1.5,
+                                opacity: 1,
+                                color: '#64748b',
+                                dashArray: '',
+                                fillOpacity: 0.8
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            const name = feature.properties.shapeName;
+
+                            // Permanent Label
+                            layer.bindTooltip(name, {
+                                permanent: true,
+                                direction: 'center',
+                                className: 'district-label',
+                                interactive: false
+                            }).openTooltip();
+
+                            layer.on({
+                                mouseover: function (e) {
+                                    const l = e.target;
+                                    l.setStyle({
+                                        fillOpacity: 1,
+                                        weight: 3,
+                                        color: '#334155'
+                                    });
+                                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                                        l.bringToFront();
+                                    }
+                                    info.update(l.feature.properties);
+                                },
+                                mouseout: function (e) {
+                                    geoJsonLayer.resetStyle(e.target);
+                                    info.update();
+                                }
+                            });
+
+                            const valDisplay = (focusData[name] !== undefined && focusData[name] !== null) ? focusData[name] + ' ' + indicatorUnit : 'No data';
+                            layer.bindPopup(`<strong>${name} District</strong><br>${activeIndicatorName}: ${valDisplay}`);
+                        }
+                    }).addTo(map);
+
+                    setTimeout(() => {
+                        map.invalidateSize();
+                        map.fitBounds(geoJsonLayer.getBounds(), { padding: [30, 30] });
+                    }, 500);
+                });
+
+            // Handle Indicator Change
+            indicatorSelect.addEventListener('change', function () {
+                const indicatorId = this.value;
+                fetch(`/indicator/${indicatorId}/map-data/`)
+                    .then(response => response.json())
+                    .then(json => {
+                        focusData = json.data;
+                        indicatorUnit = json.unit;
+                        activeIndicatorName = json.name;
+
+                        // Update UI labels
+                        document.getElementById('active-indicator-name').textContent = activeIndicatorName;
+
+                        // Update Map
+                        updateMapStyles();
+                        info.update();
+                    });
+            });
+        })();
+
+        // --- Search Functionality ---
+        if (searchInput) {
+            const searchIndex = [];
+            const chapterItems = document.querySelectorAll('.chapter-item');
+            chapterItems.forEach(chapter => {
+                const chapterName = chapter.dataset.chapterName;
+                const indicators = chapter.querySelectorAll('.indicator-card');
+                searchIndex.push({ type: 'chapter', name: chapterName, element: chapter });
+                indicators.forEach(indicator => {
+                    const indicatorName = indicator.dataset.indicatorName;
+                    searchIndex.push({ type: 'indicator', name: indicatorName, element: indicator, parentChapter: chapter });
+                });
+            });
+
+            const fuse = new Fuse(searchIndex, {
+                keys: ['name'],
+                threshold: 0.4,
+                ignoreLocation: true,
+                useExtendedSearch: true
+            });
+
+            searchInput.addEventListener('input', function (e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                const noResults = document.getElementById('noResults');
+                if (searchTerm === "") {
+                    document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.remove('d-none'));
+                    document.querySelectorAll('.accordion-collapse.show').forEach(el => el.classList.remove('show'));
+                    noResults.classList.add('d-none');
+                    return;
+                }
+                const results = fuse.search(searchTerm);
+                document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.add('d-none'));
+                if (results.length > 0) {
+                    noResults.classList.add('d-none');
+                    results.forEach(result => {
+                        const item = result.item;
+                        item.element.classList.remove('d-none');
+                        if (item.type === 'indicator') {
+                            item.parentChapter.classList.remove('d-none');
+                            item.parentChapter.querySelector('.accordion-collapse').classList.add('show');
+                            item.parentChapter.querySelector('.accordion-button').classList.remove('collapsed');
+                        } else if (item.type === 'chapter') {
+                            item.element.querySelectorAll('.indicator-card').forEach(ind => ind.classList.remove('d-none'));
+                            item.element.querySelector('.accordion-collapse').classList.add('show');
+                            item.element.querySelector('.accordion-button').classList.remove('collapsed');
+                        }
+                    });
+                } else {
+                    noResults.classList.remove('d-none');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

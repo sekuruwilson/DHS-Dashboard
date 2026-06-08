@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load indicator_filters %}
+
+{% block title %}{{ indicator.name }} – RDHS{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'indicator_list' %}">Dashboard</a></li>
+        <li class="breadcrumb-item text-muted">{{ indicator.category.name }}</li>
+        <li class="breadcrumb-item active" aria-current="page">{{ indicator.name }}</li>
+    </ol>
+</nav>
+
+<div class="row g-4">
+
+    <!-- ── Chart ── -->
+    <div class="col-lg-8">
+        <div class="glass-card p-4 h-100">
+
+            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                <div>
+                    <h4 class="indicator-title mb-1">{{ indicator.name }}</h4>
+                    <p class="text-muted small mb-0">{{ indicator.category.name }} · {{ indicator.unit }} · Survey year {{ indicator.year }}</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{% url 'export_indicator_csv' indicator.pk %}"
+                        class="btn btn-outline-success btn-sm rounded-pill px-3">
+                        <i class="bi bi-download me-1"></i> CSV
+                    </a>
+                    <a href="{% url 'correlation_analytics' %}?indicator={{ indicator.pk }}"
+                        class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                        <i class="bi bi-bar-chart-steps me-1"></i> Analytics
+                    </a>
+                </div>
+            </div>
+
+            <!-- Year switcher -->
+            {% if all_years|length > 1 %}
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="text-muted small fw-semibold"><i class="bi bi-calendar3 me-1"></i>Year:</span>
+                {% for yr in all_years %}
+                <a href="{% url 'indicator_detail' indicator.pk %}?year={{ yr }}"
+                    class="btn btn-sm {% if yr == selected_year %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill px-3">
+                    {{ yr }}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Label tabs (only when > 1 dataset) -->
+            {% if datasets|length > 1 %}
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                <button class="btn btn-sm btn-primary rounded-pill" onclick="showAll()">All</button>
+                {% for ds in datasets %}
+                <button class="btn btn-sm btn-outline-secondary rounded-pill label-btn"
+                    onclick="toggleLabel('{{ ds.label }}', this)">{{ ds.label }}</button>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Chart container — tall enough so labels never collide -->
+            <div style="position:relative; height:420px; overflow:hidden;">
+                <canvas id="indicatorChart"></canvas>
+            </div>
+
+            <!-- Province & National reference cards -->
+            <div class="row g-2 mt-3">
+                {% for val in raw_values %}
+                {% if val.district.name == 'Eastern Province' %}
+                <div class="col-6 col-md-3">
+                    <div class="glass-card p-3 text-center">
+                        <div class="small text-muted">Eastern Province</div>
+                        <div class="fw-bold fs-5" style="color:#93C47D;">{{ val.value|floatformat:1 }}%</div>
+                        <div class="small text-muted">{{ val.data_label }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if val.district.name == 'Rwanda' %}
+                <div class="col-6 col-md-3">
+                    <div class="glass-card p-3 text-center">
+                        <div class="small text-muted">Rwanda (National)</div>
+                        <div class="fw-bold fs-5" style="color:#F6B26B;">{{ val.value|floatformat:1 }}%</div>
+                        <div class="small text-muted">{{ val.data_label }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── Summary Table + Insights ── -->
+    <div class="col-lg-4 d-flex flex-column gap-4">
+
+        <!-- District table -->
+        <div class="glass-card p-4">
+            <h5 class="fw-bold mb-3">District Values</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>District</th>
+                            <th>Label</th>
+                            <th class="text-end">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for val in raw_values %}
+                        {% if val.district.name != 'Eastern Province' and val.district.name != 'Rwanda' %}
+                        <tr>
+                            <td class="small fw-semibold">{{ val.district.name }}</td>
+                            <td class="small text-muted">{{ val.data_label }}</td>
+                            <td class="text-end fw-bold text-primary">{{ val.value|floatformat:1 }}%</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Key Insights -->
+        <div class="glass-card p-4">
+            <h5 class="fw-bold mb-3"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Key Insights</h5>
+            <div id="insights-body">
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="small text-muted ms-2">Analysing data…</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{{ labels|json_script:"chart-labels" }}
+{{ datasets|json_script:"chart-datasets" }}
+<script id="chart-unit" type="application/json">"{{ indicator.unit }}"</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    Chart.register(ChartDataLabels);
+
+    const labels   = JSON.parse(document.getElementById('chart-labels').textContent);
+    const datasets = JSON.parse(document.getElementById('chart-datasets').textContent);
+    const unit     = JSON.parse(document.getElementById('chart-unit').textContent);
+
+    // ── Colours matching the notebooks exactly ───────────────────────
+    const C_DISTRICT = '#6D9EEB';   // blue  — all 7 districts
+    const C_PROVINCE = '#93C47D';   // green — Eastern Province
+    const C_NATIONAL = '#F6B26B';   // orange — Rwanda national
+    // Multi-series palette (contraception, nutrition, etc.)
+    const MULTI = ['#4F81BD','#9BBB59','#C0504D','#8064A2','#4BACC6','#F79646'];
+
+    if (datasets.length === 1) {
+        datasets[0].backgroundColor = labels.map(l =>
+            l === 'Rwanda'           ? C_NATIONAL :
+            l === 'Eastern Province' ? C_PROVINCE : C_DISTRICT
+        );
+        datasets[0].borderColor = 'white';
+        datasets[0].borderWidth = 1;
+        datasets[0].borderRadius = 3;
+    } else {
+        datasets.forEach((ds, i) => {
+            ds.backgroundColor = MULTI[i % MULTI.length];
+            ds.borderColor = 'white';
+            ds.borderWidth = 1;
+            ds.borderRadius = 3;
+        });
+    }
+
+    // ── Dynamic bar width — wide bars, no collisions ─────────────────
+    // categoryPercentage + barPercentage control actual bar width in Chart.js
+    const nGroups = labels.length;
+    const nSeries = datasets.length;
+    // Fewer groups → wider bars
+    const catPct = nGroups <= 5  ? 0.55 :
+                   nGroups <= 9  ? 0.70 :
+                                   0.85;
+    const barPct = nSeries > 2   ? 0.85 : 0.70;
+
+    datasets.forEach(ds => {
+        ds.categoryPercentage = catPct;
+        ds.barPercentage      = barPct;
+    });
+
+    const ctx = document.getElementById('indicatorChart').getContext('2d');
+    window._chart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            // Extra top padding so the tallest label never clips
+            layout: { padding: { top: 36, left: 4, right: 4, bottom: 0 } },
+            plugins: {
+                legend: {
+                    display: datasets.length > 1,
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 18,
+                        font: { family: 'Inter', size: 12 }
+                    }
+                },
+                tooltip: {
+                    padding: 10,
+                    backgroundColor: 'rgba(15,23,42,0.9)',
+                    bodyFont: { family: 'Inter', size: 12 },
+                    callbacks: {
+                        label: c => ` ${parseFloat(c.raw).toFixed(1)}%`
+                    }
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 3,
+                    // Show integer value + % (e.g. "46%") — same as notebooks
+                    formatter: v => (v !== null && v !== undefined) ? Math.round(v) + '%' : '',
+                    font: { family: 'Inter', size: 11, weight: 'bold' },
+                    color: '#111827',
+                    clamp: true
+                }
+            },
+            scales: {
+                // Y axis hidden — values shown on bars instead
+                y: {
+                    display: false,
+                    beginAtZero: true,
+                    // Give extra headroom above max bar so label is never cut off
+                    max: function(ctx) {
+                        const maxVal = Math.max(...datasets.flatMap(d => d.data.filter(v => v !== null)));
+                        return maxVal * 1.20;
+                    }
+                },
+                x: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: {
+                        font: { family: 'Inter', size: 11 },
+                        maxRotation: 45,
+                        minRotation: 0,
+                        autoSkip: false
+                    }
+                }
+            }
+        }
+    });
+
+    // ── Label toggle ─────────────────────────────────────────────────
+    window.showAll = function () {
+        window._chart.data.datasets.forEach(ds => ds.hidden = false);
+        window._chart.update();
+        document.querySelectorAll('.label-btn').forEach(b => {
+            b.classList.remove('btn-primary');
+            b.classList.add('btn-outline-secondary');
+        });
+    };
+    window.toggleLabel = function (label, btn) {
+        const ds = window._chart.data.datasets.find(d => d.label === label);
+        if (!ds) return;
+        ds.hidden = !ds.hidden;
+        window._chart.update();
+        btn.classList.toggle('btn-primary');
+        btn.classList.toggle('btn-outline-secondary');
+    };
+
+    // ── Quick insights ────────────────────────────────────────────────
+    (function buildInsights() {
+        const firstDs = datasets[0];
+        if (!firstDs) { document.getElementById('insights-body').innerHTML = '<p class="text-muted small">No data.</p>'; return; }
+
+        const AGGREGATES = ['Eastern Province', 'Rwanda'];
+        const pairs = labels
+            .map((l, i) => ({ name: l, value: firstDs.data[i] }))
+            .filter(p => p.value !== null && !AGGREGATES.includes(p.name));
+
+        if (!pairs.length) { document.getElementById('insights-body').innerHTML = '<p class="text-muted small">No district data.</p>'; return; }
+
+        const vals   = pairs.map(p => p.value);
+        const avg    = vals.reduce((a, b) => a + b, 0) / vals.length;
+        const top    = pairs.reduce((a, b) => a.value > b.value ? a : b);
+        const bottom = pairs.reduce((a, b) => a.value < b.value ? a : b);
+        const spread = top.value - bottom.value;
+
+        let html = `<ul class="list-unstyled small mb-0" style="line-height:2">`;
+        html += `<li>📊 <strong>Average</strong>: ${avg.toFixed(1)}% across 7 districts</li>`;
+        html += `<li>🏆 <strong>Highest</strong>: ${top.name} — ${top.value.toFixed(1)}%</li>`;
+        html += `<li>📉 <strong>Lowest</strong>: ${bottom.name} — ${bottom.value.toFixed(1)}%</li>`;
+        if      (spread > 20) html += `<li>⚠️ Large gap of <strong>${spread.toFixed(1)}%</strong> — targeted interventions may be needed.</li>`;
+        else if (spread < 5)  html += `<li>✅ Uniform performance across districts (spread: ${spread.toFixed(1)}%).</li>`;
+        else                  html += `<li>📌 Moderate variation of <strong>${spread.toFixed(1)}%</strong> between districts.</li>`;
+        if (datasets.length > 1)
+            html += `<li>🔎 <strong>${datasets.length} sub-categories</strong> — use the tabs above to compare.</li>`;
+        html += `</ul>`;
+        document.getElementById('insights-body').innerHTML = html;
+    })();
+})();
+</script>
+{% endblock %}

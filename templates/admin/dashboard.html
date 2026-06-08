@@ -1,429 +1,171 @@
 {% extends 'admin/admin_base.html' %}
 
-{% block title %}Dashboard — RDHS Admin{% endblock %}
+{% block title %}Dashboard - RDHS Admin{% endblock %}
 {% block header %}Dashboard Overview{% endblock %}
 
 {% block extra_css %}
-<style>
-    /* ── Stat Cards ─────────────────────────────── */
-    .dash-stats {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-    @media (max-width: 1100px) { .dash-stats { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px)  { .dash-stats { grid-template-columns: 1fr; } }
 
-    .ds-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 14px;
-        padding: 22px 24px 18px;
-        box-shadow: var(--card-shadow);
-        position: relative;
-        overflow: hidden;
-        transition: all 0.2s;
-    }
-    .ds-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--card-shadow-hover);
-    }
-    .ds-card::after {
-        content: '';
-        position: absolute;
-        top: -20px;
-        right: -20px;
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        opacity: 0.12;
-        transition: transform 0.3s;
-    }
-    .ds-card:hover::after { transform: scale(1.3); }
-    .ds-card.blue::after  { background: #4F46E5; }
-    .ds-card.indigo::after { background: #7C3AED; }
-    .ds-card.teal::after  { background: #0D9488; }
-    .ds-card.orange::after { background: #EA580C; }
 
-    .ds-label {
-        font-size: 0.72rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: var(--text-muted);
-        margin-bottom: 6px;
-    }
-    .ds-value {
-        font-family: 'Outfit', 'Inter', sans-serif;
-        font-size: 2.6rem;
-        font-weight: 800;
-        letter-spacing: -0.05em;
-        line-height: 1;
-        color: var(--text-main);
-        margin-bottom: 10px;
-        position: relative;
-        z-index: 2;
-    }
-    .ds-link {
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        transition: gap 0.2s;
-    }
-    .ds-link:hover { gap: 8px; }
-    .ds-link.blue   { color: #4F46E5; }
-    .ds-link.indigo { color: #7C3AED; }
-    .ds-link.teal   { color: #0D9488; }
-    .ds-link.orange { color: #EA580C; }
-
-    /* ── Main Grid ──────────────────────────────── */
-    .dash-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-    }
-    @media (max-width: 900px) { .dash-grid { grid-template-columns: 1fr; } }
-
-    /* ── Quick Actions ──────────────────────────── */
-    .quick-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-bottom: 14px;
-    }
-    .qa-btn {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        padding: 20px 12px;
-        border-radius: 12px;
-        text-decoration: none;
-        font-size: 0.875rem;
-        font-weight: 600;
-        transition: all 0.2s;
-        border: 1px solid transparent;
-    }
-    .qa-btn:hover { transform: translateY(-2px); }
-    .qa-btn i {
-        font-size: 1.3rem;
-        width: 42px;
-        height: 42px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: #fff;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-        transition: transform 0.2s;
-    }
-    .qa-btn:hover i { transform: scale(1.15); }
-    .qa-btn.blue   { background: rgba(79,70,229,0.07);  color: #4F46E5;  border-color: rgba(79,70,229,0.15); }
-    .qa-btn.indigo { background: rgba(124,58,237,0.07); color: #7C3AED; border-color: rgba(124,58,237,0.15); }
-    .qa-btn.teal   { background: rgba(13,148,136,0.07); color: #0D9488;  border-color: rgba(13,148,136,0.15); }
-    .qa-btn.orange { background: rgba(234,88,12,0.07);  color: #EA580C;  border-color: rgba(234,88,12,0.15); }
-
-    .qa-batch {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        padding: 14px;
-        border-radius: 12px;
-        border: 2px dashed var(--border-color);
-        color: var(--text-muted);
-        text-decoration: none;
-        font-size: 0.875rem;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    .qa-batch:hover {
-        border-color: var(--primary);
-        color: var(--primary);
-        background: var(--primary-light);
-    }
-
-    /* ── Browse Indicators ──────────────────────── */
-    .browse-form {
-        display: flex;
-        gap: 10px;
-        align-items: stretch;
-    }
-    .browse-select-wrap {
-        flex: 1;
-        position: relative;
-    }
-    .browse-select-wrap i {
-        position: absolute;
-        left: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-muted);
-        font-size: 0.875rem;
-        pointer-events: none;
-    }
-    .browse-select-wrap select {
-        padding-left: 36px;
-        height: 42px;
-        cursor: pointer;
-        font-weight: 500;
-        appearance: none;
-    }
-    .browse-chevron {
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-muted);
-        font-size: 0.75rem;
-        pointer-events: none;
-    }
-    .btn-go {
-        height: 42px;
-        padding: 0 22px;
-        background: var(--primary);
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        font-size: 0.875rem;
-        font-weight: 700;
-        cursor: pointer;
-        font-family: inherit;
-        transition: background 0.15s;
-    }
-    .btn-go:hover { background: var(--primary-hover); }
-
-    /* ── System Status ──────────────────────────── */
-    .status-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--success);
-        box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
-        animation: pulse-green 2s infinite;
-        flex-shrink: 0;
-    }
-    @keyframes pulse-green {
-        0%, 100% { box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
-        50%       { box-shadow: 0 0 0 6px rgba(16,185,129,0.1); }
-    }
-
-    /* ── DHS Processing Card ────────────────────── */
-    .dhs-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 3px 10px;
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 700;
-    }
-    .dhs-badge.ready   { background: rgba(16,185,129,0.1); color: var(--success); }
-    .dhs-badge.missing { background: rgba(245,158,11,0.1);  color: var(--warning); }
-
-    .dataset-list {
-        background: var(--bg-body);
-        border: 1px solid var(--border-color);
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin-bottom: 16px;
-    }
-    .dataset-list-label {
-        font-size: 0.65rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--text-muted);
-        margin-bottom: 8px;
-        display: block;
-    }
-    .dataset-file {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.8rem;
-        font-family: monospace;
-        color: var(--text-main);
-        padding: 3px 0;
-    }
-    .dataset-file i { color: var(--primary); font-size: 0.75rem; }
-</style>
 {% endblock %}
 
 {% block content %}
-
-<!-- ── Stat Cards ────────────────────────────────────── -->
-<div class="dash-stats">
-
-    <div class="ds-card blue">
-        <div class="ds-label">Indicators Computed</div>
-        <div class="ds-value">{{ total_indicators|default:"0" }}</div>
-        <span class="ds-link blue">Across all chapters</span>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Stat Card 1 -->
+    <div
+        class="glass-panel p-6 rounded-xl shadow-sm border border-white/50 relative overflow-hidden group hover:shadow-md transition-all">
+        <div
+            class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full group-hover:scale-110 transition-transform">
+        </div>
+        <div class="relative z-10">
+            <p class="text-sm font-medium text-gray-500 mb-1">Total Chapters</p>
+            <h3 class="text-3xl font-bold text-gray-800">{{ total_chapters|default:"13" }}</h3>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-blue-600">
+            <span class="font-medium">Information Categories</span>
+        </div>
     </div>
 
-    <div class="ds-card indigo">
-        <div class="ds-label">Data Points</div>
-        <div class="ds-value">{{ total_values|default:"0" }}</div>
-        <span class="ds-link indigo">District-level values</span>
+    <!-- Stat Card 2 -->
+    <div
+        class="glass-panel p-6 rounded-xl shadow-sm border border-white/50 relative overflow-hidden group hover:shadow-md transition-all">
+        <div
+            class="absolute -right-6 -top-6 w-24 h-24 bg-indigo-500/10 rounded-full group-hover:scale-110 transition-transform">
+        </div>
+        <div class="relative z-10">
+            <p class="text-sm font-medium text-gray-500 mb-1">Indicators</p>
+            <h3 class="text-3xl font-bold text-gray-800">{{ total_indicators|default:"145" }}</h3>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-indigo-600">
+            <span class="font-medium">Monitored Metrics</span>
+        </div>
     </div>
 
-    <div class="ds-card teal">
-        <div class="ds-label">Uploaded Datasets</div>
-        <div class="ds-value">{{ total_datasets|default:"0" }}</div>
-        <a href="{% url 'admin_dataset_upload' %}" class="ds-link teal">
-            Manage <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
-        </a>
+    <!-- Stat Card 3 -->
+    <div
+        class="glass-panel p-6 rounded-xl shadow-sm border border-white/50 relative overflow-hidden group hover:shadow-md transition-all">
+        <div
+            class="absolute -right-6 -top-6 w-24 h-24 bg-teal-500/10 rounded-full group-hover:scale-110 transition-transform">
+        </div>
+        <div class="relative z-10">
+            <p class="text-sm font-medium text-gray-500 mb-1">Data Points</p>
+            <h3 class="text-3xl font-bold text-gray-800">{{ total_values|default:"4,230" }}</h3>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-teal-600">
+            <span class="font-medium">Recorded Values</span>
+        </div>
     </div>
 
-    <div class="ds-card orange">
-        <div class="ds-label">Admin Users</div>
-        <div class="ds-value">{{ total_users|default:"0" }}</div>
-        <a href="{% url 'admin_user_list' %}" class="ds-link orange">
-            Manage <i class="fas fa-arrow-right" style="font-size:0.65rem;"></i>
-        </a>
+    <!-- Stat Card 4 -->
+    <div
+        class="glass-panel p-6 rounded-xl shadow-sm border border-white/50 relative overflow-hidden group hover:shadow-md transition-all">
+        <div
+            class="absolute -right-6 -top-6 w-24 h-24 bg-orange-500/10 rounded-full group-hover:scale-110 transition-transform">
+        </div>
+        <div class="relative z-10">
+            <p class="text-sm font-medium text-gray-500 mb-1">Districts</p>
+            <h3 class="text-3xl font-bold text-gray-800">{{ total_districts|default:"30" }}</h3>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-orange-600">
+            <span class="font-medium">Across Rwanda</span>
+        </div>
     </div>
-
 </div>
 
-<!-- ── Main 2-column Grid ────────────────────────────── -->
-<div class="dash-grid">
 
-    <!-- Left: Uploaded Datasets -->
-    <div style="display:flex;flex-direction:column;gap:20px;">
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Uploaded DHS Datasets</h2>
-                <a href="{% url 'admin_dataset_upload' %}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-upload"></i> Upload
-                </a>
-            </div>
-
-            {% if uploaded_datasets %}
-                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-                    <thead>
-                        <tr style="border-bottom:1px solid var(--border-color);">
-                            <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;">Recode</th>
-                            <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;">Year</th>
-                            <th style="text-align:left;padding:8px 10px;color:var(--text-muted);font-weight:600;">File</th>
-                            <th style="text-align:right;padding:8px 10px;color:var(--text-muted);font-weight:600;">Rows</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ds in uploaded_datasets %}
-                        <tr style="border-bottom:1px solid var(--border-color);">
-                            <td style="padding:8px 10px;font-weight:700;color:var(--primary);">{{ ds.recode_type }}</td>
-                            <td style="padding:8px 10px;">{{ ds.year }}</td>
-                            <td style="padding:8px 10px;color:var(--text-muted);font-size:0.78rem;">{{ ds.original_filename }}</td>
-                            <td style="padding:8px 10px;text-align:right;">{{ ds.num_rows|default:"—" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div class="alert alert-warning">
-                    <i class="fas fa-triangle-exclamation"></i>
-                    <div>
-                        <strong>No datasets uploaded yet.</strong><br>
-                        <span style="font-size:0.8rem;">
-                            Upload DHS Stata (.DTA) files to trigger automatic indicator computation.
-                        </span>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- Left Column: Quick Actions -->
+    <div class="space-y-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h4 class="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h4>
+            <div class="grid grid-cols-2 gap-4">
+                <a href="{% url 'admin_category_create' %}"
+                    class="p-4 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+                    <div
+                        class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                        <i class="fas fa-plus"></i>
                     </div>
-                </div>
-            {% endif %}
-        </div>
+                    <span class="font-medium">Add Category</span>
+                </a>
+                <a href="{% url 'admin_indicator_create' %}"
+                    class="p-4 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+                    <div
+                        class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <span class="font-medium">Add Indicator</span>
+                </a>
+                <a href="{% url 'admin_datavalue_create' %}"
+                    class="p-4 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+                    <div
+                        class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <span class="font-medium">Add Data</span>
+                </a>
+                <a href="{% url 'admin_locations' %}"
+                    class="p-4 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+                    <div
+                        class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <span class="font-medium">Locations</span>
+                </a>
+            </div>
 
-        <!-- Quick Actions -->
-        <div class="card">
-            <div class="card-header"><h2 class="card-title">Quick Actions</h2></div>
-            <div class="quick-actions">
-                <a href="{% url 'admin_dataset_upload' %}" class="qa-btn blue">
-                    <i class="fas fa-upload"></i> Upload Dataset
-                </a>
-                <a href="{% url 'admin_user_create' %}" class="qa-btn indigo">
-                    <i class="fas fa-user-plus"></i> Add User
-                </a>
-                <a href="{% url 'admin_audit_logs' %}" class="qa-btn teal">
-                    <i class="fas fa-shield-halved"></i> Audit Logs
+            <div class="mt-4">
+                <a href="{% url 'admin_add_data' %}"
+                    class="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors flex items-center justify-center gap-3 group border border-gray-200 border-dashed hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
+                    <i class="fas fa-plus-circle text-xl text-gray-400 group-hover:text-blue-500 transition-colors"></i>
+                    <span class="font-medium">Add Manual / Batch Data</span>
                 </a>
             </div>
         </div>
+    </div>
 
-    </div><!-- /Left Column -->
-
-    <!-- Right: System Status + Recent Logs -->
-    <div style="display:flex;flex-direction:column;gap:20px;">
+    <!-- Right Column: Browse & Status -->
+    <div class="space-y-6">
+        <!-- Browse Indicators -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h4 class="text-lg font-semibold text-gray-800 mb-4">Browse Indicators</h4>
+            <form action="{% url 'admin_indicators' %}" method="get" class="flex gap-3">
+                <div class="flex-1 relative">
+                    <i
+                        class="fas fa-filter absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                    <select name="category"
+                        class="w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-300 focus:border-blue-500 outline-none appearance-none bg-white text-gray-700 cursor-pointer hover:border-blue-400 transition-colors">
+                        <option value="">Select a Category...</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <i
+                        class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                </div>
+                <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm">
+                    Go
+                </button>
+            </form>
+        </div>
 
         <!-- System Status -->
-        <div class="card">
-            <div class="card-header"><h2 class="card-title">System Status</h2></div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-                <div class="status-dot"></div>
-                <span style="font-size:0.875rem;font-weight:600;color:var(--text-main);">System Online</span>
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h4 class="text-lg font-semibold text-gray-800 mb-4">System Status</h4>
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="text-sm font-medium text-gray-600">System Online</span>
             </div>
-            <div style="display:flex;flex-direction:column;gap:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
-                    <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
-                        <i class="fas fa-chart-bar" style="margin-right:6px;color:#7C3AED;"></i>Indicators
-                    </span>
-                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_indicators|default:"—" }}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
-                    <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
-                        <i class="fas fa-database" style="margin-right:6px;color:#0D9488;"></i>Data Points
-                    </span>
-                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_values|default:"—" }}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
-                    <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
-                        <i class="fas fa-file-arrow-up" style="margin-right:6px;color:#EA580C;"></i>Datasets
-                    </span>
-                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_datasets|default:"—" }}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
-                    <span style="font-size:0.8rem;font-weight:500;color:var(--text-muted);">
-                        <i class="fas fa-users" style="margin-right:6px;color:var(--primary);"></i>Users
-                    </span>
-                    <span style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text-main);">{{ total_users|default:"—" }}</span>
-                </div>
-            </div>
+            <p class="text-sm text-gray-500">Database connection active. Last backup: Today, 03:00 AM.</p>
         </div>
-
-        <!-- Recent Audit Logs -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Recent Activity</h2>
-                <a href="{% url 'admin_audit_logs' %}" class="btn btn-ghost btn-sm">
-                    View All <i class="fas fa-arrow-right" style="font-size:0.7rem;"></i>
-                </a>
-            </div>
-            {% if recent_logs %}
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                {% for log in recent_logs %}
-                    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-body);border-radius:8px;border:1px solid var(--border-color);">
-                        <i class="fas fa-circle{% if log.success %}-check" style="color:#16a34a{% else %}-xmark" style="color:#dc2626{% endif %};margin-top:2px;font-size:0.75rem;"></i>
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-size:0.8rem;font-weight:600;color:var(--text-main);">{{ log.description|truncatechars:60 }}</div>
-                            <div style="font-size:0.72rem;color:var(--text-muted);">
-                                {{ log.user.username|default:"system" }} &middot; {{ log.timestamp|timesince }} ago
-                            </div>
-                        </div>
-                        <span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--bg-card);border:1px solid var(--border-color);color:var(--text-muted);">{{ log.action }}</span>
-                    </div>
-                {% endfor %}
-                </div>
-            {% else %}
-                <p style="font-size:0.85rem;color:var(--text-muted);">No activity recorded yet.</p>
-            {% endif %}
-        </div>
-
-    </div><!-- /Right Column -->
-
+    </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
+
+
+<script>
+
+</script>
 {% endblock %}

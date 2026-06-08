@@ -1,0 +1,20 @@
+<div class="d-flex flex-column align-items-start mb-3 animate-fade-in">
+    <div class="p-3 rounded-4 shadow-sm markdown-content"
+        style="background: var(--primary-light); color: var(--text-main); border: 1px solid var(--glass-border); max-width: 85%;"
+        {% if stream_url %}data-stream-url="{{ stream_url }}"{% endif %}>
+        {% if stream_url %}
+        <span class="stream-output"></span>
+        <span class="typing-cursor" style="display:inline-block;width:2px;height:1em;background:currentColor;vertical-align:middle;animation:blink 0.75s step-start infinite;margin-left:2px;"></span>
+        {% else %}
+        {{ response }}
+        {% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2 mt-1 ms-2">
+        <span class="text-muted small">Assistant</span>
+        <button class="btn btn-sm btn-link p-0 text-muted"
+            onclick="speakText(this.closest('.animate-fade-in').querySelector('.markdown-content').innerText)"
+            title="Read Aloud">
+            <i class="bi bi-volume-up-fill"></i>
+        </button>
+    </div>
+</div>

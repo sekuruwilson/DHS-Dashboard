@@ -2,25 +2,52 @@ from django.urls import path
 from . import admin_views
 
 urlpatterns = [
-    # ── Auth ──────────────────────────────────────────
-    path('login/',  admin_views.admin_login_view,  name='admin_login'),
+    # Auth
+    path('login/', admin_views.admin_login_view, name='admin_login'),
     path('logout/', admin_views.admin_logout_view, name='admin_logout'),
-
-    # ── Dashboard ─────────────────────────────────────
+    
+    # Dashboard
     path('', admin_views.admin_dashboard_view, name='admin_dashboard'),
+    
+    # Category Management
+    path('categories/', admin_views.category_list_view, name='admin_categories'),
+    path('categories/create/', admin_views.category_create_view, name='admin_category_create'),
+    path('categories/update/<int:pk>/', admin_views.category_edit_view, name='admin_category_edit'),
+    path('categories/delete/<int:pk>/', admin_views.category_delete_view, name='admin_category_delete'),
+    
+    # Indicator Management
+    path('indicators/', admin_views.indicator_list_admin_view, name='admin_indicators'),
+    path('indicators/create/', admin_views.indicator_create_view, name='admin_indicator_create'),
+    path('indicators/update/<int:pk>/', admin_views.indicator_edit_view, name='admin_indicator_edit'),
+    path('indicators/delete/<int:pk>/', admin_views.indicator_delete_view, name='admin_indicator_delete'),
+    
+    # Data Value Management
+    path('data-values/', admin_views.datavalue_list_view, name='admin_datavalues'),
+    path('data/add/', admin_views.admin_add_data_view, name='admin_add_data'),
+    path('data-values/create/', admin_views.datavalue_create_view, name='admin_datavalue_create'),
+    path('data-values/update/<int:pk>/', admin_views.datavalue_edit_view, name='admin_datavalue_edit'),
+    path('data-values/delete/<int:pk>/', admin_views.datavalue_delete_view, name='admin_datavalue_delete'),
+    
+    # Location Management
+    path('locations/', admin_views.location_list_view, name='admin_locations'),
+    
+    # Province CRUD
+    path('locations/province/create/', admin_views.province_create_view, name='admin_province_create'),
+    path('locations/province/edit/<int:pk>/', admin_views.province_edit_view, name='admin_province_edit'),
+    path('locations/province/delete/<int:pk>/', admin_views.province_delete_view, name='admin_province_delete'),
 
-    # ── Dataset Upload ────────────────────────────────
-    path('datasets/',                          admin_views.dataset_upload_view,  name='admin_dataset_upload'),
-    path('datasets/delete/<int:pk>/',          admin_views.dataset_delete_view,  name='admin_dataset_delete'),
-    path('datasets/compute/<int:year>/',       admin_views.dataset_compute_view, name='admin_dataset_compute'),
+    # District CRUD
+    path('locations/district/create/', admin_views.district_create_view, name='admin_district_create'),
+    path('locations/district/edit/<int:pk>/', admin_views.district_edit_view, name='admin_district_edit'),
+    path('locations/district/delete/<int:pk>/', admin_views.district_delete_view, name='admin_district_delete'),
 
-    # ── User Management ───────────────────────────────
-    path('users/',                admin_views.user_list_view,         name='admin_user_list'),
-    path('users/create/',         admin_views.user_create_view,       name='admin_user_create'),
-    path('users/edit/<int:pk>/',  admin_views.user_edit_view,         name='admin_user_edit'),
-    path('users/delete/<int:pk>/',admin_views.user_delete_view,       name='admin_user_delete'),
-    path('users/toggle/<int:pk>/',admin_views.user_toggle_active_view,name='admin_user_toggle'),
+    # Report Builder
+    path('report/', admin_views.report_builder_view, name='admin_report_builder'),
+    path('report/indicator/<int:pk>/data/', admin_views.report_indicator_data, name='admin_report_indicator_data'),
 
-    # ── Audit Logs ────────────────────────────────────
-    path('audit-logs/', admin_views.audit_log_view, name='admin_audit_logs'),
+    # Report Drafts
+    path('report/drafts/', admin_views.list_report_drafts, name='admin_report_list_drafts'),
+    path('report/drafts/save/', admin_views.save_report_draft, name='admin_report_save_draft'),
+    path('report/drafts/<int:pk>/', admin_views.get_report_draft, name='admin_report_get_draft'),
+    path('report/drafts/<int:pk>/delete/', admin_views.delete_report_draft, name='admin_report_delete_draft'),
 ]

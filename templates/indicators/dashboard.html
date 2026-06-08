@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load indicator_filters %}
+
+{% block title %}Dashboard – RDHS Eastern Province{% endblock %}
+
+{% block content %}
+
+<!-- Summary Stats (all dynamic) -->
+<div class="row mb-4 g-3">
+    <div class="col-md-4">
+        <div class="stat-card p-4 h-100">
+            <div class="stat-card-glow"></div>
+            <div class="stat-icon primary mb-3"><i class="bi bi-book"></i></div>
+            <div class="stat-value">{{ total_chapters }}</div>
+            <div class="stat-label">Chapters</div>
+            <p class="text-muted small mb-0 mt-2"><i class="bi bi-diagram-3 me-1"></i>Organised topic areas</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card p-4 h-100">
+            <div class="stat-card-glow"></div>
+            <div class="stat-icon success mb-3"><i class="bi bi-bar-chart-line"></i></div>
+            <div class="stat-value">{{ total_indicators }}</div>
+            <div class="stat-label">Indicators</div>
+            <p class="text-muted small mb-0 mt-2"><i class="bi bi-bullseye me-1"></i>Health & demographic metrics</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card p-4 h-100">
+            <div class="stat-card-glow"></div>
+            <div class="stat-icon info mb-3"><i class="bi bi-database"></i></div>
+            <div class="stat-value">{{ total_values }}</div>
+            <div class="stat-label">Data Points</div>
+            <p class="text-muted small mb-0 mt-2"><i class="bi bi-hdd-stack me-1"></i>Survey year: {{ selected_year }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Year selector -->
+{% if all_years|length > 1 %}
+<div class="d-flex align-items-center gap-3 mb-4">
+    <span class="text-muted small fw-semibold"><i class="bi bi-calendar3 me-1"></i>Survey Year:</span>
+    {% for yr in all_years %}
+    <a href="?year={{ yr }}"
+        class="btn btn-sm {% if yr == selected_year %}btn-primary{% else %}btn-outline-secondary{% endif %} rounded-pill px-3">
+        {{ yr }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Chapters Accordion -->
+<div class="accordion accordion-flush bg-transparent" id="chaptersAccordion">
+    {% for category in categories %}
+    <div class="accordion-item glass-card mb-3 border-0 rounded-4 overflow-hidden chapter-item"
+        data-chapter-name="{{ category.name|lower }}">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed py-4 px-4 bg-transparent fw-bold" type="button"
+                data-bs-toggle="collapse" data-bs-target="#collapse{{ category.id }}">
+                <span class="me-3 text-primary fs-5">
+                    <i class="bi {{ category.name|chapter_icon }}"></i>
+                </span>
+                {{ category.name }}
+                <span class="badge bg-primary bg-opacity-10 text-primary ms-3 fw-normal">
+                    {{ category.indicators.count }} indicator{{ category.indicators.count|pluralize }}
+                </span>
+            </button>
+        </h2>
+        <div id="collapse{{ category.id }}" class="accordion-collapse collapse" data-bs-parent="#chaptersAccordion">
+            <div class="accordion-body px-4 pb-4">
+                <div class="row g-3">
+                    {% for indicator in category.year_indicators %}
+                    <div class="col-md-6 col-lg-4 indicator-card" data-indicator-name="{{ indicator.name|lower }}">
+                        <a href="{% url 'indicator_detail' indicator.pk %}"
+                            class="card indicator-link-card h-100 border-0 p-3 text-decoration-none">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box me-3">
+                                    <i class="bi {{ indicator.name|indicator_icon }}"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1 text-dark fw-bold" style="font-size:0.85rem;">{{ indicator.name }}</h6>
+                                    <p class="small text-muted mb-0">{{ indicator.unit }} · {{ indicator.year }}</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center py-4">
+                        <p class="text-muted small">No indicators found for this chapter yet.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="noResults" class="text-center py-5 d-none">
+    <h4 class="text-muted">No indicators match your search.</h4>
+    <p class="text-muted small">Try different keywords or browse the categories above.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('globalSearch');
+    if (!searchInput) return;
+
+    const searchIndex = [];
+    document.querySelectorAll('.chapter-item').forEach(chapter => {
+        searchIndex.push({ type: 'chapter', name: chapter.dataset.chapterName, element: chapter });
+        chapter.querySelectorAll('.indicator-card').forEach(card => {
+            searchIndex.push({ type: 'indicator', name: card.dataset.indicatorName, element: card, parent: chapter });
+        });
+    });
+
+    const fuse = new Fuse(searchIndex, { keys: ['name'], threshold: 0.4, ignoreLocation: true });
+
+    searchInput.addEventListener('input', function () {
+        const term = this.value.trim();
+        const noResults = document.getElementById('noResults');
+
+        if (!term) {
+            document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.remove('d-none'));
+            document.querySelectorAll('.accordion-collapse.show').forEach(el => {
+                el.classList.remove('show');
+                el.previousElementSibling?.querySelector('.accordion-button')?.classList.add('collapsed');
+            });
+            noResults.classList.add('d-none');
+            return;
+        }
+
+        document.querySelectorAll('.chapter-item, .indicator-card').forEach(el => el.classList.add('d-none'));
+        const results = fuse.search(term);
+
+        if (results.length) {
+            noResults.classList.add('d-none');
+            results.forEach(({ item }) => {
+                item.element.classList.remove('d-none');
+                if (item.type === 'indicator') {
+                    item.parent.classList.remove('d-none');
+                    item.parent.querySelector('.accordion-collapse').classList.add('show');
+                    item.parent.querySelector('.accordion-button').classList.remove('collapsed');
+                } else {
+                    item.element.querySelectorAll('.indicator-card').forEach(c => c.classList.remove('d-none'));
+                    item.element.querySelector('.accordion-collapse').classList.add('show');
+                    item.element.querySelector('.accordion-button').classList.remove('collapsed');
+                }
+            });
+        } else {
+            noResults.classList.remove('d-none');
+        }
+    });
+
+    // Cross-page search via ?q= param
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) { searchInput.value = q; searchInput.dispatchEvent(new Event('input')); }
+});
+</script>
+{% endblock %}
